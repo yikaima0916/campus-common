@@ -50,7 +50,7 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 | Web Push | Yes | Unverified | Needs VAPID secrets |
 | Cron (reminders, digests) | `scheduled()` exists | **Off** | No cron trigger in `wrangler.i4i.jsonc` |
 | Daily Digest | Yes | Depends on cron | |
-| Public home, Academic hub, Campus Life hub | Yes, merged to main | Live 2026-11-10 | Production Safari public pages checked; 4 changed assets matched local source byte-for-byte. Coming Soon tiles have no backend |
+| Campus Common public home / unified Study Workspace | Yes, main | Live 2026-11-10 | One workspace entry; grouped Academic / Campus Life sections on the homepage. All 35 static assets match the final release; future tiles remain Coming Soon |
 | Academic Planner, reviews, notes, Non-Academic Hub features | No | No | Future concept only; shown as Coming Soon tiles |
 
 ## 5. Latest change log (newest first)
@@ -62,8 +62,11 @@ Use this format: Completed changes / Files modified / Commit SHA and branch / De
   - Combined Mail / Tasks / Groups / Daily Digest into one Study Workspace entry, restoring the last visited workspace view. Removed the duplicate Email Assistant CTA and intermediary Academic/Campus Life menu screens; legacy section hashes scroll to the grouped homepage.
   - Wider responsive two-column homepage, compact brand header, mint active workspace and compact future modules. Homepage/GetHomepage GitHub and official layout documentation informed grouped columns; no external code or dependencies added.
   - Target Worker `campus-common`, same isolated i4i D1 and runtime bindings. Old competition Worker becomes a 307 no-store redirect preserving path/query/method; original CDS Worker and account-level workers.dev suffix are excluded. New hostname requires signing in again; existing accounts/data remain in the same D1.
-  - Verification so far: 972 translation/brand assertions; one workspace entry and no obsolete intermediary markup; all three backend file diffs are exact brand substitutions. Local Safari EN/简/繁 brand, dark toggle and signed-out workspace/login target verified. Full test/CLI startup stalled on this host; the earlier 102-test result is historical, not a new run. The production-tested bundle is reused with only corresponding exact brand literal substitutions.
-  - Deployment and production verification: pending final release checks. No physical iPhone/PWA test claimed.
+  - Verification so far: 972 translation/brand assertions; one workspace entry and no obsolete intermediary markup; all three backend file diffs are exact brand substitutions. Local Safari EN/简/繁 brand, dark toggle and signed-out workspace/login target verified. Full test/CLI startup stalled on this host; the earlier 102-test result is historical, not a new run. A fresh esbuild bundle was generated from the current source; external Node builtin require calls were converted to static node: imports for the nodejs_compat runtime. The new bundle passed production registration/login and task checks.
+  - Live: **https://campus-common.campus-companion.workers.dev/**. Active version **`e92befca-1884-4b06-a12f-41ea31e39961`**, 100% traffic, verified 2026-11-11 00:20 HKT. Legacy redirect version `f45f7260-7519-408e-9260-e34899d9a870` on `campus-companion-i4i`. Main implementation commit `5aee52274d1727e56cc505de3b651169feb6404a`; the following source commit contains the final public button color-transition fix and this verification record.
+  - Production: 10 public/deep-link/auth access checks; registration + login + task create/read/complete/delete + mail/groups/digests reads + logout/session invalidation passed. A first PATCH without a version correctly returned 409; the versioned update passed. One new disposable QA account/task was created and removed; D1 confirmed zero remaining accounts for that exact QA email. All 35 deployed static assets matched the release package; all 6 old-URL redirect checks passed, preserving paths/queries and using no-store.
+  - Safari production: logo checkmark visible on the initial light homepage; Chinese brand remains Campus Common; light/dark layouts, locale selection and Coming Soon feedback checked. Removed public button color transitions after they caused mismatched backgrounds/text during Safari theme changes; existing logo animation retained. No physical iPhone/PWA test claimed.
+  - Isolation: CDS original main remains `c0a99c8e876182a9305d7991e8a4f3c84dfad5f7`; live app.js SHA-256 matches its pre-release hash. Account workers.dev suffix is unchanged.
 
 - **2026-11-10 — Codex, deployed and verified the i4i homepage.**
   - Source: PR #1 merged as `c86846843edea335bfe1c6550f23a565dfeb422b`; follow-up visibility fix `151125150de16d0aa4faefe80c6b6ac67c08cd5f` removes only the public-screen opacity entrance animation. Safari had rendered public content transparent with that animation; the fixed Academic screen and homepage layout were visually verified. Logo CSS/SMIL animations are unchanged; the final checkmark was visually verified on the local real Worker.
@@ -99,6 +102,6 @@ Use this format: Completed changes / Files modified / Commit SHA and branch / De
 - [ ] Add the `ai` binding, set `ENABLE_AI`, and verify summary and deadline extraction on sample mail.
 - [ ] Add a cron trigger if reminders and the digest are in the demo; verify.
 - [x] Confirm the CDS original is unaffected (repository head and live frontend hash unchanged).
-- [x] Public homepage and Academic / Campus Life entry points implemented; existing workspace retained.
+- [x] Campus Common branding, unified workspace entry, denser grouped homepage and new Worker hostname; old i4i links redirect; original workspace functionality retained.
 - [ ] Verify the final release on a physical iPhone (Safari, PWA, responsive layout, push if configured).
 - [ ] Record the demo video from the real site with test data only.

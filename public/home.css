@@ -1,4 +1,6 @@
 /* Campus Common: one workspace, grouped tools, and responsive columns. */
+/* Keep theme/locale colors in sync; only movement transitions. */
+#pub button{transition-property:transform}
 .sprite{position:absolute;width:0;height:0;overflow:hidden}.i{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 #pub{--life:#7764ac;--life-soft:#f0ecf8;--on-accent:#fff;position:relative;min-height:100dvh;background:var(--bg);color:var(--ink);padding-bottom:calc(48px + env(safe-area-inset-bottom))}:root[data-theme="dark"] #pub{--life:#c5b5f1;--life-soft:#302b42;--on-accent:#172f2c}
 #pub>.pub-bar{display:flex;align-items:center;justify-content:space-between;gap:24px;width:calc(100% - 88px);max-width:1480px;margin:0 auto;padding:30px 0 28px;height:auto;min-height:0;border:0;position:relative;top:auto;background:transparent;z-index:5}
