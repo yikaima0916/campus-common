@@ -39,8 +39,8 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 
 | Feature | Code | Live | Notes |
 | --- | --- | --- | --- |
-| Register / login / data isolation | Yes | Reported earlier, not re-verified | Earlier AI tested with temp accounts |
-| Tasks, reminders UI | Yes | Not verified | |
+| Register / login / data isolation | Yes | Verified 2026-11-10 via production API | Two temporary release accounts; cross-account task edit denied; accounts and sessions cleaned up |
+| Tasks, reminders UI | Yes | Task CRUD verified via production API; editor verified in local Safari | Actual push delivery remains unverified |
 | Groups (tasks, availability, meeting vote) | Yes | Reported earlier, not re-verified | |
 | Mail summary, rule-based fallback | Yes | Not verified | Used when AI is off |
 | Mail AI summary / extraction | Yes | **Off** | Needs `ENABLE_AI` = "true" **and** an `ai` binding; the binding is not in `wrangler.i4i.jsonc` |
@@ -49,12 +49,20 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 | Web Push | Yes | Unverified | Needs VAPID secrets |
 | Cron (reminders, digests) | `scheduled()` exists | **Off** | No cron trigger in `wrangler.i4i.jsonc` |
 | Daily Digest | Yes | Depends on cron | |
-| Public home, Academic hub, Campus Life hub | Yes, homepage plus sign-in/deep-link fixes | Pending production deployment | Local real Worker + Safari checked. Coming Soon tiles have no backend |
+| Public home, Academic hub, Campus Life hub | Yes, merged to main | Live 2026-11-10 | Production Safari public pages checked; 4 changed assets matched local source byte-for-byte. Coming Soon tiles have no backend |
 | Academic Planner, reviews, notes, Non-Academic Hub features | No | No | Future concept only; shown as Coming Soon tiles |
 
 ## 5. Latest change log (newest first)
 
 Use this format: Completed changes / Files modified / Commit SHA and branch / Deployed? (worker, URL) / Verification run vs not run / Known issues / Next steps.
+
+- **2026-11-10 — Codex, deployed and verified the i4i homepage.**
+  - Source: PR #1 merged as `c86846843edea335bfe1c6550f23a565dfeb422b`; follow-up visibility fix `151125150de16d0aa4faefe80c6b6ac67c08cd5f` removes only the public-screen opacity entrance animation. Safari had rendered public content transparent with that animation; the fixed Academic screen and homepage layout were visually verified. Logo CSS/SMIL animations are unchanged; the final checkmark was visually verified on the local real Worker.
+  - Live: **https://campus-companion-i4i.campus-companion.workers.dev/**. Active Worker version **`7eded898-073d-4145-95d2-f67749983ead`**, 100% traffic; deployment `95ec7277-3a2b-47f7-a81d-cb06969e6354`, verified 2026-11-10 23:36 HKT. Worker/D1 remain `campus-companion-i4i`; D1 ID `2ef415cd-56b9-4f37-9f75-b7f19cbdd968`.
+  - Publication: first deployment used locked Wrangler 4.136.0. Subsequent CLI startup attempts stalled, so the final CSS release used Cloudflare's documented direct-upload API with the already validated Worker bundle. All 35 public assets were attached, the same D1/ASSETS/APP_ORIGIN/ENABLE_AI bindings and runtime settings were retained, and `run_worker_first: true` was preserved. No system-wide Cloudflare MCP/Skills installation succeeded: the host denied writes to Codex configuration/skills, and the authenticated skills fallback was unavailable. Existing Wrangler OAuth and Cloudflare API access work.
+  - Production verification: **14/14** public/deep-link/API access checks; all private unauthenticated API responses remained 401 with `no-store`. **15/15** test-account checks covered registration, login, own-task read/create/complete/delete, denied cross-account edits, mail/groups/digests reads, missing-message denial, logout and invalidated session. Both new test accounts and all their sessions were removed after testing; the test task was removed. No original student records were used.
+  - Source verification: deployed `index.html`, `app.js`, `home.css`, and `workspace-route.js` matched local source byte-for-byte. CDS-original `main` remained `c0a99c8e876182a9305d7991e8a4f3c84dfad5f7` and its live `app.js` SHA-256 was unchanged across the release.
+  - Remaining limits: no physical iPhone/PWA/push-delivery verification; no configured live Outlook/shortcut ingestion, AI summary extraction or cron/digest delivery test. These are separate follow-up tasks, not completed homepage features.
 
 - **2026-11-10 — Codex, homepage finalisation (see Git history for source commit).**
   - Completed: retained Campus Companion branding; preserved signed-out view/message/task destinations in the URL across login and reload; removed the Worker redirect that discarded `?view=`; task notifications open only tasks returned by the signed-in account; centralised browser history handling and reader cleanup.
@@ -75,12 +83,13 @@ Use this format: Completed changes / Files modified / Commit SHA and branch / De
 
 ## 6. Next tasks (in this order)
 
-- [ ] Merge the validated homepage + fixes into `main`, then deploy to the i4i Worker only.
+- [x] Merge the validated homepage + fixes into `main`, then deploy to the i4i Worker only.
 - [x] Install frozen dependencies and run all tests; exact versions and host runner limitation recorded in Section 5.
-- [ ] Check that the production deployment matches GitHub; run `node scripts/check-public-access.mjs` against the live site and record the result.
+- [x] Verify deployed frontend bytes and all 14 checks from `scripts/check-public-access.mjs` against production; run the equivalent HTTP checks directly (14/14).
 - [ ] Decide one stable mail path for the demo (forwarding, Outlook OAuth, or iPhone Shortcut); configure only that one.
 - [ ] Add the `ai` binding, set `ENABLE_AI`, and verify summary and deadline extraction on sample mail.
 - [ ] Add a cron trigger if reminders and the digest are in the demo; verify.
-- [ ] Confirm the CDS original is unaffected.
+- [x] Confirm the CDS original is unaffected (repository head and live frontend hash unchanged).
 - [x] Public homepage and Academic / Campus Life entry points implemented; existing workspace retained.
+- [ ] Verify the final release on a physical iPhone (Safari, PWA, responsive layout, push if configured).
 - [ ] Record the demo video from the real site with test data only.
