@@ -98,7 +98,7 @@ export async function addGroupMember(env,actorId,groupId,email){
   if(access.role!=='owner')throw new CollaborationError('只有小组创建者可以添加成员',403);
   const normalized=String(email??'').trim().toLowerCase();
   const user=await env.DB.prepare('SELECT id,email,nickname FROM users WHERE email=?').bind(normalized).first();
-  if(!user)throw new CollaborationError('该同学需要先注册 Campus Companion',404);
+  if(!user)throw new CollaborationError('该同学需要先注册 Campus Common',404);
   if(await memberExists(env,groupId,user.id))throw new CollaborationError('该用户已经是成员',409);
   const invitation={id:crypto.randomUUID(),group_id:groupId,user_id:user.id,invited_by:actorId,created:Date.now()};
   await env.DB.prepare("INSERT INTO group_invitations(id,group_id,user_id,invited_by,created) VALUES(?,?,?,?,?) ON CONFLICT(group_id,user_id) DO UPDATE SET status='pending',invited_by=excluded.invited_by,created=excluded.created").bind(invitation.id,groupId,user.id,actorId,invitation.created).run();

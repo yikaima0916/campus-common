@@ -7,7 +7,7 @@ Technical detail lives in README.md, CONTEXT.md, I4I-ISOLATION.md and docs/TEAM_
 
 ## 1. Product and goal
 
-- This repo is the **i4i competition version** of Campus Companion (UI still shows Campus Companion / 校园清单; do not rename or change logo/UI without an explicit request).
+- This repo is the **i4i competition version** of **Campus Common** (the owner explicitly requested the same English brand in every language on 2026-11-10; retain the existing logo).
 - Positioning: AI Campus Assistant + Academic Hub + Non-Academic Hub. Email AI is the first real MVP module, not the whole product.
 - Event: Innovate4Impact, Lingnan University, Final Pitch **2026-11-23** (poster: 17:30–20:00, LYH31920; speaking time per organizer notice, design for 7 min, compressible to 5).
 - Pitch strategy: big vision and plan first, then the real MVP demo. Primary SDG 3 (SDG 4 secondary, not formally declared).
@@ -27,9 +27,10 @@ Technical detail lives in README.md, CONTEXT.md, I4I-ISOLATION.md and docs/TEAM_
 
 | Item | Value |
 | --- | --- |
-| Site | https://campus-companion-i4i.campus-companion.workers.dev/ |
+| Site | https://campus-common.campus-companion.workers.dev/ |
 | Repo | github.com/yikamai0916-sys/campus-companion-i4i (private), branch `main` |
-| Worker / D1 | `campus-companion-i4i` / `campus-companion-i4i` |
+| Worker / D1 | `campus-common` / `campus-companion-i4i` (same isolated D1, no migration) |
+| Legacy URL | `campus-companion-i4i.campus-companion.workers.dev` redirects to the current site |
 | Based on | CDS commit 73cd9f2d97a347ee2f9aa2780ddd13f6dd824773 |
 | Other site | `campus-common-preview.pages.dev`: possibly related early prototype (second-hand / forum). Do not merge, modify or delete it before the pitch. |
 
@@ -55,6 +56,14 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 ## 5. Latest change log (newest first)
 
 Use this format: Completed changes / Files modified / Commit SHA and branch / Deployed? (worker, URL) / Verification run vs not run / Known issues / Next steps.
+
+- **2026-11-10 — Codex, Campus Common naming and unified homepage (owner requested).**
+  - Every visible brand, login/sidebar title, PWA name and notification title now uses Campus Common in EN / 简 / 繁. Retained logo and existing internal account/database identifiers.
+  - Combined Mail / Tasks / Groups / Daily Digest into one Study Workspace entry, restoring the last visited workspace view. Removed the duplicate Email Assistant CTA and intermediary Academic/Campus Life menu screens; legacy section hashes scroll to the grouped homepage.
+  - Wider responsive two-column homepage, compact brand header, mint active workspace and compact future modules. Homepage/GetHomepage GitHub and official layout documentation informed grouped columns; no external code or dependencies added.
+  - Target Worker `campus-common`, same isolated i4i D1 and runtime bindings. Old competition Worker becomes a 307 no-store redirect preserving path/query/method; original CDS Worker and account-level workers.dev suffix are excluded. New hostname requires signing in again; existing accounts/data remain in the same D1.
+  - Verification so far: 972 translation/brand assertions; one workspace entry and no obsolete intermediary markup; all three backend file diffs are exact brand substitutions. Local Safari EN/简/繁 brand, dark toggle and signed-out workspace/login target verified. Full test/CLI startup stalled on this host; the earlier 102-test result is historical, not a new run. The production-tested bundle is reused with only corresponding exact brand literal substitutions.
+  - Deployment and production verification: pending final release checks. No physical iPhone/PWA test claimed.
 
 - **2026-11-10 — Codex, deployed and verified the i4i homepage.**
   - Source: PR #1 merged as `c86846843edea335bfe1c6550f23a565dfeb422b`; follow-up visibility fix `151125150de16d0aa4faefe80c6b6ac67c08cd5f` removes only the public-screen opacity entrance animation. Safari had rendered public content transparent with that animation; the fixed Academic screen and homepage layout were visually verified. Logo CSS/SMIL animations are unchanged; the final checkmark was visually verified on the local real Worker.

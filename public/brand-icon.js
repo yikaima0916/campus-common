@@ -1,4 +1,4 @@
-// The Campus Companion app icon: calendar + check + rising sun, with the page-curl corner.
+// The Campus Common app icon: calendar + check + rising sun, with the page-curl corner.
 // One markup builder, used for the big icon on the login screen, the flying copy and the small
 // icon docked in the sidebar. Motion lives in brand.css (CSS) plus <animate> on the curl (SMIL).
 //

@@ -369,7 +369,7 @@ async function routes(request,env,ctx){
   if(path==='/api/test-notification'&&method==='POST'){
  if(!env.VAPID_PUBLIC_KEY||!env.VAPID_PRIVATE_KEY)return json({error:wording(account.locale,'系统通知尚未配置','系統通知尚未設定','Push notifications are not configured.')},400);
  if(!await env.DB.prepare('SELECT id FROM subscriptions WHERE user_id=? LIMIT 1').bind(account.user_id).first())return json({error:wording(account.locale,'请先在此设备启用通知','請先在此裝置啟用通知','Enable notifications on this device first.')},400);
- await enqueue(env,'test:'+crypto.randomUUID(),null,Date.now(),{title:wording(account.locale,'校园清单 · 测试提醒','校園清單 · 測試提醒','Campus Companion · Test'),body:wording(account.locale,'收到这条消息表示推送已接通。','收到此訊息表示推送已接通。','Receiving this confirms that push works.'),url:'/'},{push:true,email:false},account.user_id);await deliver(env);return json({ok:true});
+ await enqueue(env,'test:'+crypto.randomUUID(),null,Date.now(),{title:wording(account.locale,'Campus Common · 测试提醒','Campus Common · 測試提醒','Campus Common · Test'),body:wording(account.locale,'收到这条消息表示推送已接通。','收到此訊息表示推送已接通。','Receiving this confirms that push works.'),url:'/'},{push:true,email:false},account.user_id);await deliver(env);return json({ok:true});
  }
   return json({error:serverMessage('页面不存在',uiLocale)},404);
 }

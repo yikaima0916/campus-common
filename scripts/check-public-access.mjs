@@ -1,6 +1,6 @@
 // Read-only deployment smoke test. Never send account cookies or create records.
 import assert from 'node:assert/strict';
-const origin = new URL(process.argv[2] || 'https://campus-companion-i4i.campus-companion.workers.dev').origin;
+const origin = new URL(process.argv[2] || 'https://campus-common.campus-companion.workers.dev').origin;
 const checks = [
   ['/', 200],
   ...['settings','tasks','mail','groups','digests'].map(view => [`/?view=${view}`, 200]),

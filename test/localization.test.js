@@ -13,7 +13,7 @@ test('all interface dictionary entries round trip through three languages; blank
   assert.equal(sandbox.translate(cn,'en'),variants.at(-1));
  }
  for(const language of ['zh-CN','zh-TW','en'])assert.equal(sandbox.translate(' \n ',language),' \n ');
- assert.equal(sandbox.translate('校園清單','zh-CN'),'校园清单');
+ for(const language of ['zh-CN','zh-TW','en'])assert.equal(sandbox.translate('Campus Common',language),'Campus Common');
  assert.equal(sandbox.translate('截止时间（香港）','en'),'Due time (Hong Kong)');
 });
 test('generated meeting tasks and push labels follow the account locale',()=>{

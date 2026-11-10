@@ -52,7 +52,7 @@ const MESSAGES={
   '候选任务已经处理':['候選任務已經處理','Candidate task was already handled'],
   '小组不存在或你不是成员':['小組不存在或你不是成員','Group not found, or you are not a member'],
   '只有小组创建者可以添加成员':['只有小組建立者可以新增成員','Only the group owner can add members'],
-  '该同学需要先注册 Campus Companion':['該同學需要先註冊 Campus Companion','This classmate must register for Campus Companion first'],
+  '该同学需要先注册 Campus Common':['該同學需要先註冊 Campus Common','This classmate must register for Campus Common first'],
   '该用户已经是成员':['該用戶已經是成員','This user is already a member'],
   '建议负责人不是小组成员':['建議負責人不是小組成員','The proposed assignee is not a group member'],
   '候选任务不存在':['候選任務不存在','Candidate task not found'],
