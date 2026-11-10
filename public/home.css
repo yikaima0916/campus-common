@@ -30,8 +30,8 @@
 
 /* screens */
 .pub-screen{max-width:880px;margin:0 auto;padding:0 24px}
-.pub-screen:not(.hidden){animation:pub-in .3s var(--ease-out)}
-@keyframes pub-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* Public content stays visible even when a browser suspends CSS animations.
+   The logo keeps its own animation in brand.css. */
 
 /* home: logo is the anchor */
 .pub-home{display:flex;flex-direction:column;align-items:center;padding-top:10px}
