@@ -228,12 +228,16 @@ test('meeting polls treat missing availability as unknown and confirm only full-
 
 });
 
-test('unauthenticated shared view URLs redirect to the public home page',async()=>{
-  const env={DB:database(),ASSETS:{fetch:async()=>new Response('public app')}};
-  const response=await worker.fetch(new Request('https://campus.example/?view=settings',{redirect:'manual'}),env);
-  assert.equal(response.status,302);assert.equal(response.headers.get('location'),'https://campus.example/');
-  const publicResponse=await worker.fetch(new Request('https://campus.example/'),env);
-  assert.equal(publicResponse.status,200);
+test('signed-out deep links retain their URL and serve only the public shell',async()=>{
+  const env={DB:database(),ASSETS:{fetch:async request=>new Response(new URL(request.url).search)}};
+  for(const query of ['', '?view=settings', '?view=mail&message=mail-1', '?task=task-1']){
+    const response=await worker.fetch(new Request('https://campus.example/'+query),env);
+    assert.equal(response.status,200);assert.equal(await response.text(),query);
+  }
+  for(const path of ['tasks','messages','profile','groups']){
+    const response=await worker.fetch(new Request('https://campus.example/api/'+path),env);
+    assert.equal(response.status,401);assert.deepEqual(Object.keys(await response.json()),['error']);
+  }
 });
 
 test('each signed-in account can start its own Outlook connection with an email hint',async()=>{
@@ -421,13 +425,18 @@ test('user-defined name aliases persist, rewrite senders, and mail search filter
   assert.equal(kept.nameAliases.length,2);
 });
 
-test('brief generation is account scoped and unavailable AI is reported without fabricating a summary',async()=>{
+test('brief generation is account scoped and disabled AI returns only a labelled source excerpt',async()=>{
  const env={DB:database()},origin='https://campus.example',token=random();
  await env.DB.prepare("INSERT INTO users(id,email,password_hash,created) VALUES('brief-a','a@example.com','unused',0),('brief-b','b@example.com','unused',0)").run();
  await env.DB.prepare('INSERT INTO sessions(id,expires,user_id) VALUES(?,?,?)').bind(await hash(token),Date.now()+3600000,'brief-a').run();
  await env.DB.prepare("INSERT INTO messages(id,subject,received,sender,origin,category,summary,action,url,quality,user_id) VALUES('own','FW: One',1,'s','o',2,'s','a','','q','brief-a'),('other','FW: Two',1,'s','o',2,'s','a','','q','brief-b')").run();
  const response=await worker.fetch(new Request(origin+'/api/mail/briefs',{method:'POST',headers:{Cookie:'campus_session='+token,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({ids:['own','other']})}),env);
- assert.equal(response.status,200);assert.deepEqual((await response.json()).results,[{id:'own',error:true}]);
+ assert.equal(response.status,200);
+ const results=(await response.json()).results;
+ assert.equal(results.length,1);assert.equal(results[0].id,'own');
+ assert.equal(results[0].brief.fallback,true);
+ assert.deepEqual(results[0].brief.points,[{text:'s',evidence:'s'}]);
+ assert.deepEqual(results[0].brief.actions,[]);
 });
 
 test('two tabs keep separate accounts with a shared login cookie and exchange invitations',async()=>{

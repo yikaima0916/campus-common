@@ -85,8 +85,8 @@ async function routes(request,env,ctx){
     return startSession(env,user,url,request);
   }
   if(!path.startsWith('/api/')){
-    // A shared link must never reopen a previous person's private screen.
-    if(url.searchParams.has('view')&&!await session(request,env))return Response.redirect(url.origin+'/',302);
+    // Serve the public shell without discarding deep-link parameters.
+    // Private data remains protected by the API session check below.
     return env.ASSETS.fetch(request);
   }
   const account=await session(request,env);if(!account)return json({error:serverMessage('请先登录',uiLocale)},401);

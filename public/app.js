@@ -138,7 +138,9 @@ const sessionTab=sessionStorage.getItem('campus-session-tab')||crypto.randomUUID
 async function api(path,options={}){const response=await fetch('/api/'+path,{...options,headers:{'Content-Type':'application/json','X-Locale':locale,'X-Session-Tab':sessionTab,...options.headers},body:options.body===undefined?undefined:JSON.stringify(options.body)});let data;try{data=await response.json();}catch{throw Error('服务暂时不可用，请稍后重试');}if(!response.ok){if(response.status===401&&!['login','register','recovery/question','recovery/reset'].includes(path)){signedIn=false;if(!booting)showLogin();}throw Error(translateCopy(data.error||'操作失败'));}return data;}
 function showLogin(){
   $('#app').classList.add('hidden');$('#pub').classList.add('hidden');$('#login').classList.remove('hidden');ensureHero();
-  if(location.search)history.replaceState(null,'','/');
+  pendingTarget=workspaceRoute(location.search)||pendingTarget;
+  hideMailReader();
+  if($('#task-dialog').open)$('#task-dialog').close();
   applyLocale(localStorage.getItem('campus-locale')||detectLocale());
   $$('[data-login-locale]').forEach(b=>b.classList.toggle('selected',b.dataset.loginLocale===locale));
 }
@@ -167,6 +169,7 @@ function renderTasks(){
 async function loadTasks(){tasks=await api('tasks');renderTasks();translateTextNodes();}
 // ES module imports are hoisted, so these work even though they are not at the very top.
 // (They sit here because test/localization.test.js evaluates the top of this file as a plain script.)
+import { WORKSPACE_VIEWS, workspaceRoute, workspaceUrl } from './workspace-route.js';
 import { TaskReminderPicker } from './task-reminders.js';
 import { playButtonSuccess, resetSuccessButton, circularTransition, setupCardStack } from './motion.js';
 import { watchTimeInputs } from './native-pickers.js';
@@ -928,7 +931,6 @@ function wireMailDetail(){
   const dialog=$('#mail-detail-dialog');if(!dialog||dialog.dataset.wired)return;dialog.dataset.wired='1';
   const close=()=>{if(history.state?.mailReader)history.back();else{hideMailReader();view('mail');}};
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialog.classList.contains('hidden'))close();});
-  window.addEventListener('popstate',()=>{const id=new URLSearchParams(location.search).get('message');if(id)openMailDetail(id,{push:false});else hideMailReader();});
   $('#close-mail-detail')?.addEventListener('click',close);
   $('#mail-detail-done')?.addEventListener('click',close);
   dialog.querySelectorAll('[data-mail-pane]').forEach(btn=>btn.onclick=()=>{
@@ -938,7 +940,7 @@ function wireMailDetail(){
   });
 }
 async function restorePush(){try{if(!('Notification'in window)||Notification.permission!=='granted'||!('serviceWorker'in navigator))return;const registration=await navigator.serviceWorker.register('/sw.js');const sub=await registration.pushManager.getSubscription();if(sub)await api('subscriptions',{method:'POST',body:sub.toJSON()});}catch(error){console.warn('Notification subscription refresh failed',error);}}
-async function boot(){booting=true;wireMailDetail();wireMailSearch();try{await api('session/tab',{method:'POST',body:{}});status=await api('status');restorePush();const profile=await api('profile');reminderDefaults=profile.reminders||reminderDefaults;applyLocale(status.account.locale||localStorage.getItem('campus-locale')||'zh-CN');localStorage.setItem('campus-locale',locale);signedIn=true;$('#login').classList.add('hidden');ensureDock();$('#account-label').textContent=accountLabel(status.account);setAvatar(status.account.avatar,accountLabel(status.account).slice(0,1).toUpperCase());$('#date-label').textContent=new Date().toLocaleDateString(dateLocale(),{timeZone:'Asia/Hong_Kong',year:'numeric',month:'long',day:'numeric',weekday:'long'});await loadTasks();const params=new URLSearchParams(location.search),v=params.get('view'),message=params.get('message');routeAfterBoot(v,message);}catch(e){if(!$('#app').classList.contains('hidden'))$('#global-error').textContent=e.message;else{showPublic(publicRoute());if(signedIn)toast(e.message);}}finally{booting=false;}}
+async function boot(){booting=true;wireMailDetail();wireMailSearch();try{await api('session/tab',{method:'POST',body:{}});status=await api('status');restorePush();const profile=await api('profile');reminderDefaults=profile.reminders||reminderDefaults;applyLocale(status.account.locale||localStorage.getItem('campus-locale')||'zh-CN');localStorage.setItem('campus-locale',locale);signedIn=true;$('#login').classList.add('hidden');ensureDock();$('#account-label').textContent=accountLabel(status.account);setAvatar(status.account.avatar,accountLabel(status.account).slice(0,1).toUpperCase());$('#date-label').textContent=new Date().toLocaleDateString(dateLocale(),{timeZone:'Asia/Hong_Kong',year:'numeric',month:'long',day:'numeric',weekday:'long'});await loadTasks();routeAfterBoot();}catch(e){if(!$('#app').classList.contains('hidden'))$('#global-error').textContent=e.message;else{if(!signedIn&&(workspaceRoute(location.search)||pendingTarget))showLogin();else showPublic(publicRoute());if(signedIn)toast(e.message);}}finally{booting=false;}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!$('#app').classList.contains('hidden'))loadTasks().catch(e=>toast(e.message));});
 
 function announcementText(item){if(item.kind==='meeting-change')return {title:item.title,body:item.body==='cancel'?local('会议已取消','會議已取消','Meeting cancelled'):local('会议已改期，请重新提交可用时间','會議已改期，請重新提交可用時間','Meeting rescheduled. Submit availability again.')};if(item.kind==='meeting'){const poll=groupState.meetingPolls.find(p=>p.id===item.source_id);if(poll)return {title:local('会议时间已确认：','會議時間已確認：','Meeting confirmed: ')+poll.name,body:fmt(poll.confirmed_start)+' · '+poll.duration_minutes+' '+local('分钟','分鐘','minutes')};}return item;}
@@ -974,11 +976,10 @@ const PUB_TEXT={
  'zh-TW':{pubHome:'主頁',pubSignIn:'登入',pubSignOut:'登出',pubSettings:'設定',pubAcademic:'學業',pubLife:'校園生活',pubEmail:'郵件助手',pubTasks:'待辦',pubGroups:'小組',pubDigest:'日報與提醒',pubPlanner:'學業規劃',pubReviews:'課程評價',pubNotes:'學習筆記',pubEvents:'活動',pubCommunity:'社群',pubInterest:'興趣小組',pubSecondHand:'二手交換',pubSoon:'即將推出',pubSoonToast:'即將推出'}
 };
 for(const [lang,texts] of Object.entries(PUB_TEXT))Object.assign(I18N[lang],texts);
-const WORKSPACE_VIEWS=['tasks','groups','mail','digests','settings'];
 const PUB_SCREENS={home:'#home',academic:'#hub-academic',life:'#hub-life'};
 let signedIn=false,booting=false,pendingTarget=null,pubLogoMounted=false,pubCurrent='home';
 function publicRoute(){const name=location.hash.slice(1);return PUB_SCREENS[name]?name:'home';}
-function pubTitle(){document.title=pubCurrent==='home'?'Campus Common':tx(pubCurrent==='academic'?'pubAcademic':'pubLife')+' · Campus Common';}
+function pubTitle(){document.title=pubCurrent==='home'?'Campus Companion':tx(pubCurrent==='academic'?'pubAcademic':'pubLife')+' · Campus Companion';}
 function closePubMenu(){$('#pub-menu').classList.add('hidden');$('#pub-avatar').setAttribute('aria-expanded','false');}
 function renderPubAccount(){
   $('#pub-signin').classList.toggle('hidden',signedIn);$('#pub-account').classList.toggle('hidden',!signedIn);
@@ -993,21 +994,28 @@ function showPublic(name='home'){
   $$('[data-pub-locale]').forEach(button=>{const on=button.dataset.pubLocale===locale;button.classList.toggle('selected',on);button.setAttribute('aria-pressed',String(on));});
   renderPubAccount();closePubMenu();pubTitle();window.scrollTo(0,0);
 }
-function navigatePublic(name){history.pushState(null,'',name==='home'?'/':'/#'+name);showPublic(name);}
+function navigatePublic(name){pendingTarget=null;hideMailReader();if($('#task-dialog').open)$('#task-dialog').close();history.pushState(null,'',name==='home'?'/':'/#'+name);showPublic(name);}
 function enterApp(){$('#pub').classList.add('hidden');$('#login').classList.add('hidden');$('#app').classList.remove('hidden');document.title=tx('appName');window.scrollTo(0,0);}
 function openWorkspace(name){
   if(!WORKSPACE_VIEWS.includes(name))return;
-  if(!signedIn){pendingTarget=name;showLogin();return;}
-  history.pushState(null,'','/?view='+name);enterApp();view(name);
+  const route={view:name};
+  history.pushState(null,'',workspaceUrl(route));
+  if(!signedIn){pendingTarget=route;showLogin();return;}
+  routeAfterBoot();
 }
-// After sign-in (or on first load while signed in): old ?view= links still open the workspace,
-// a pending target from the public pages opens next, anything else lands on the public home.
-function routeAfterBoot(v,message){
-  const target=pendingTarget;pendingTarget=null;
-  if(message){enterApp();view('mail');history.replaceState(null,'','/?view=mail&message='+encodeURIComponent(message));openMailDetail(message,{push:false});return;}
-  if(WORKSPACE_VIEWS.includes(v)){enterApp();view(v);return;}
-  if(WORKSPACE_VIEWS.includes(target)){enterApp();view(target);return;}
-  showPublic(publicRoute());
+// The URL retains the destination while signed out, including across reloads.
+function routeAfterBoot(){
+  const route=workspaceRoute(location.search)||pendingTarget;pendingTarget=null;
+  hideMailReader();if($('#task-dialog').open)$('#task-dialog').close();
+  if(!route){showPublic(publicRoute());return;}
+  enterApp();view(route.view);
+  history.replaceState(history.state,'',workspaceUrl(route));
+  if(route.message){openMailDetail(route.message,{push:false});return;}
+  if(route.task){
+    const task=tasks.find(item=>item.id===route.task);
+    if(task){showDone=!!task.completed;progressPeriod='all';$('#show-pending').classList.toggle('selected',!showDone);$('#show-completed').classList.toggle('selected',showDone);renderTasks();openForm(task);}
+    else toast(local('任务不存在或无法访问','任務不存在或無法存取','Task not found or unavailable'));
+  }
 }
 document.addEventListener('click',event=>{
   const go=event.target.closest('#pub [data-go]');if(go){event.preventDefault();navigatePublic(go.dataset.go);return;}
@@ -1022,7 +1030,7 @@ $('#pub-logo-btn').onclick=()=>{if(pubCurrent!=='home')navigatePublic('home');el
 $('#pub-signin').onclick=()=>{pendingTarget=null;showLogin();};
 $('#pub-avatar').onclick=()=>{const menu=$('#pub-menu'),open=menu.classList.contains('hidden');menu.classList.toggle('hidden',!open);$('#pub-avatar').setAttribute('aria-expanded',String(open));};
 $('#pub-signout').onclick=()=>{closePubMenu();logout();};
-$('#login-back').onclick=()=>{pendingTarget=null;showPublic(publicRoute());};
+$('#login-back').onclick=()=>navigatePublic(publicRoute());
 $('#go-home').onclick=()=>navigatePublic('home');
 $('aside .brand').onclick=()=>navigatePublic('home');
 $$('[data-pub-locale]').forEach(button=>button.onclick=()=>{
@@ -1032,9 +1040,9 @@ $$('[data-pub-locale]').forEach(button=>button.onclick=()=>{
 });
 window.addEventListener('popstate',()=>{
   if(booting)return;
-  const v=new URLSearchParams(location.search).get('view');
-  if(WORKSPACE_VIEWS.includes(v)){if(signedIn&&$('#app').classList.contains('hidden')){enterApp();view(v);}return;}
-  showPublic(publicRoute());
+  const route=workspaceRoute(location.search);
+  if(route){if(signedIn)routeAfterBoot();else{pendingTarget=route;showLogin();}return;}
+  pendingTarget=null;hideMailReader();if($('#task-dialog').open)$('#task-dialog').close();showPublic(publicRoute());
 });
 
 loadSettings=loadSettingsProfile;

@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 const origin = new URL(process.argv[2] || 'https://campus-companion-i4i.campus-companion.workers.dev').origin;
 const checks = [
   ['/', 200],
-  ...['settings','tasks','mail','groups'].map(view => [`/?view=${view}`, 302]),
+  ...['settings','tasks','mail','groups','digests'].map(view => [`/?view=${view}`, 200]),
+  ['/?task=missing-smoke-task', 200],
+  ['/?view=mail&message=missing-smoke-mail', 200],
   ...['profile','tasks','messages','groups','invitations','mail-suggestions'].map(path => [`/api/${path}`, 401]),
 ];
 for (const [path, expected] of checks) {
