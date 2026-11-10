@@ -1,0 +1,22 @@
+{
+  "name": "campus-companion-i4i",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.5"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --config wrangler.i4i.jsonc",
+    "deploy": "wrangler deploy --config wrangler.i4i.jsonc",
+    "test": "node --test test/*.test.js",
+    "db:local": "wrangler d1 migrations apply DB --local --config wrangler.i4i.jsonc",
+    "db:remote": "wrangler d1 migrations apply DB --remote --config wrangler.i4i.jsonc"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

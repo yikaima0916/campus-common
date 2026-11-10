@@ -1,0 +1,15 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+*.log
+wrangler.json
+wrangler.jsonc
+wrangler.local.json
+wrangler.local.jsonc
+.DS_Store
+coverage/
+dist/
+
+# Database exports contain private account data.
+backups/
