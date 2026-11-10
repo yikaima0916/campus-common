@@ -1,0 +1,122 @@
+/* Public home and hub pages (i4i). Scoped to #pub so the workspace and login screens are untouched.
+   Colours come from theme.css / dark.css tokens; only the Campus Life purple is new. */
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+.i{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+#pub{
+  --life:#6b5aa6;--life-soft:#ece7f6;--on-accent:#fff;
+  position:relative;min-height:100vh;min-height:100dvh;background:var(--bg);color:var(--ink);
+  padding-bottom:calc(48px + env(safe-area-inset-bottom));
+}
+:root[data-theme="dark"] #pub{--life:#c4b6f0;--life-soft:#2f2a40;--on-accent:#172016}
+
+/* top bar: back on the left, tools on the right; deliberately slim */
+.pub-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1040px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top)) 20px 0;min-height:60px}
+.pub-tools{display:flex;align-items:center;gap:10px;margin-left:auto}
+.pub-back{display:inline-flex;align-items:center;gap:6px;padding:8px 14px 8px 10px;font-size:14px;color:var(--ink)}
+.pub-back svg{width:18px;height:18px}
+.pub-locale{display:inline-flex;gap:2px;padding:3px;border-radius:var(--pill);background:var(--surface);box-shadow:var(--shadow-soft)}
+.pub-locale button{padding:0 11px;min-width:36px;height:32px;border-radius:var(--pill);background:transparent;box-shadow:none;color:var(--muted-text);font-size:12.5px;font-weight:800}
+.pub-locale button:hover{background:var(--surface-2)}
+.pub-locale button.selected{background:var(--accent-soft);color:var(--accent-strong)}
+#pub .theme-toggle{width:38px;height:38px}
+.pub-signin{padding:0 18px;height:38px;font-size:14px;font-weight:800;background:var(--ink-2);color:var(--on-accent);box-shadow:none}
+.pub-signin:hover{background:var(--ink-2);filter:brightness(1.08)}
+.pub-account{position:relative}
+.pub-avatar{display:grid;place-items:center;width:38px;height:38px;padding:0;border-radius:50%;overflow:hidden;background:var(--accent-soft);color:var(--accent-strong);font-weight:800;font-size:15px;box-shadow:none}
+.pub-avatar img{width:100%;height:100%;object-fit:cover}
+.pub-menu{position:absolute;right:0;top:46px;z-index:5;min-width:176px;padding:6px;border-radius:20px;background:var(--surface);box-shadow:var(--shadow-float)}
+.pub-menu button{display:block;width:100%;padding:11px 14px;border-radius:14px;background:transparent;box-shadow:none;text-align:left;font-size:14px}
+.pub-menu button:hover{background:var(--surface-2)}
+
+/* screens */
+.pub-screen{max-width:880px;margin:0 auto;padding:0 24px}
+.pub-screen:not(.hidden){animation:pub-in .3s var(--ease-out)}
+@keyframes pub-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* home: logo is the anchor */
+.pub-home{display:flex;flex-direction:column;align-items:center;padding-top:10px}
+.pub-logo-btn{position:relative;display:grid;place-items:center;width:208px;height:208px;padding:0;border-radius:50%;background:transparent;box-shadow:none}
+.pub-logo-btn:hover{background:transparent}
+.pub-disc{position:absolute;inset:0;border-radius:50%;background:var(--accent-soft);opacity:.6;transition:transform .5s var(--spring)}
+.pub-logo-btn:hover .pub-disc{transform:scale(1.04)}
+.pub-logo{position:relative;width:140px;border-radius:26%;box-shadow:0 18px 44px rgba(4,159,149,.18),0 3px 10px rgba(0,0,0,.06)}
+.pub-name{margin:14px 0 34px;font-size:34px;font-weight:900;letter-spacing:-.04em;line-height:1.1;text-align:center}
+
+.pub-hubs{display:grid;grid-template-columns:1fr 1fr;gap:20px;width:100%}
+.hub-card{--hub:var(--accent);--hub-soft:var(--accent-soft);display:block;padding:22px 22px 14px;border-radius:var(--radius-card);background:var(--surface);color:inherit;text-decoration:none;box-shadow:var(--shadow-soft);transition:transform .3s var(--spring),box-shadow .2s}
+.hub-card.life{--hub:var(--life);--hub-soft:var(--life-soft)}
+.hub-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-float)}
+.hub-card:active{transform:scale(.985)}
+.hub-card:focus-visible,.tile:focus-visible,.mail-entry:focus-visible,.pub-logo-btn:focus-visible{outline:3px solid var(--hub,var(--accent));outline-offset:3px}
+.hub-head{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.hub-ico,.tile-ico{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:16px;background:var(--hub-soft);color:var(--hub)}
+.hub-ico svg,.tile-ico svg{width:23px;height:23px}
+.hub-title{flex:1;font-size:21px;font-weight:900;letter-spacing:-.02em}
+.hub-go{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:50%;background:var(--surface-2);color:var(--muted-text);transition:background .2s,color .2s}
+.hub-go svg{width:18px;height:18px}
+.hub-card:hover .hub-go{background:var(--hub);color:var(--on-accent)}
+.hub-items{margin:0;padding:0;list-style:none}
+.hub-items li{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:14.5px;font-weight:700;color:var(--ink)}
+.hub-items li svg{flex:none;width:18px;height:18px;color:var(--hub)}
+.hub-items li.soon{color:var(--muted-text);font-weight:600}
+.hub-items li.soon svg{color:var(--muted)}
+.soon-tag{margin-left:auto;padding:2px 9px;border-radius:var(--pill);background:var(--surface-2);color:var(--muted-text);font-size:11px;font-style:normal;font-weight:700;white-space:nowrap}
+
+.mail-entry{display:flex;align-items:center;gap:14px;width:100%;max-width:460px;margin-top:22px;padding:12px 14px;border-radius:26px;background:var(--accent-soft);color:var(--accent-strong);text-decoration:none;transition:transform .3s var(--spring),box-shadow .2s}
+.mail-entry:hover{transform:translateY(-2px);box-shadow:var(--shadow-soft)}
+.mail-entry:active{transform:scale(.985)}
+.mail-ico{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:16px;background:var(--surface);color:var(--accent)}
+.mail-ico svg{width:23px;height:23px}
+.mail-label{flex:1;font-size:17px;font-weight:800}
+.mail-arrow{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;background:var(--accent);color:var(--on-accent)}
+.mail-arrow svg{width:19px;height:19px}
+
+/* hub pages */
+.pub-hub{padding-top:18px}
+.hub-page-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+.hub-page-head .hub-ico{--hub:var(--accent);--hub-soft:var(--accent-soft);width:56px;height:56px;border-radius:20px}
+.hub-page-head .hub-ico.life{--hub:var(--life);--hub-soft:var(--life-soft)}
+.hub-page-head .hub-ico svg{width:28px;height:28px}
+.pub-title{margin:0;font-size:34px;font-weight:900;letter-spacing:-.04em;line-height:1.1}
+.tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;--hub:var(--accent);--hub-soft:var(--accent-soft)}
+.tile-grid.life{--hub:var(--life);--hub-soft:var(--life-soft)}
+.tile{display:flex;align-items:center;gap:14px;width:100%;padding:16px 16px 16px 14px;border-radius:24px;background:var(--surface);color:var(--ink);text-align:left;text-decoration:none;font-family:inherit;font-size:17px;font-weight:800;line-height:1.3;box-shadow:var(--shadow-soft);transition:transform .3s var(--spring),box-shadow .2s}
+.tile:hover{transform:translateY(-2px);box-shadow:var(--shadow-float);background:var(--surface)}
+.tile:active{transform:scale(.985)}
+.tile-name{flex:1;min-width:0;overflow-wrap:anywhere}
+.tile-arrow{display:grid;place-items:center;flex:none;width:32px;height:32px;border-radius:50%;background:var(--surface-2);color:var(--muted-text);transition:background .2s,color .2s}
+.tile-arrow svg{width:17px;height:17px}
+.tile:hover .tile-arrow{background:var(--hub);color:var(--on-accent)}
+.tile.soon{color:var(--muted-text);font-weight:700}
+.tile.soon .tile-ico{background:var(--surface-2);color:var(--muted)}
+.tile.nudge{animation:tile-nudge .35s var(--ease-out)}
+@keyframes tile-nudge{25%{transform:translateX(-4px)}60%{transform:translateX(3px)}}
+
+/* login screen: way back to the public home */
+.login-back{position:absolute;z-index:2;left:20px;top:calc(18px + env(safe-area-inset-top));display:inline-flex;align-items:center;gap:6px;padding:8px 14px 8px 10px;font-size:14px}
+.login-back svg{width:18px;height:18px}
+
+/* workspace: way back to the public home */
+.home-link{display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid var(--surface-3);border-radius:50%;background:var(--surface);color:var(--ink);box-shadow:none}
+.home-link svg{width:20px;height:20px}
+.hdr-left{display:flex;align-items:center;gap:12px;min-width:0}
+aside .brand{cursor:pointer}
+
+@media(max-width:700px){
+  .pub-bar{padding-left:14px;padding-right:14px;min-height:56px}
+  .pub-screen{padding:0 16px}
+  .pub-logo-btn{width:160px;height:160px}
+  .pub-logo{width:100px}
+  .pub-name{margin:8px 0 22px;font-size:29px}
+  .pub-hubs{grid-template-columns:1fr;gap:14px}
+  .hub-card{padding:18px 18px 10px}
+  .hub-items li{padding:6px 0}
+  .mail-entry{margin-top:16px}
+  .tile-grid{grid-template-columns:1fr}
+  .pub-title{font-size:29px}
+  .pub-signin{padding:0 14px}
+}
+@media(max-width:380px){
+  .pub-locale button{padding:0 8px;min-width:32px}
+  .pub-tools{gap:6px}
+}

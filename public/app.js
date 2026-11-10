@@ -1,6 +1,6 @@
 import {startLoading} from './loading.js?v=20261102b';
 import {initPullRefresh} from './pull-refresh.js?v=rollback-20261105';
-import {ensureHero,ensureDock} from './brand-icon.js?v=20261102';
+import {ensureHero,ensureDock,mountIcon} from './brand-icon.js?v=20261102';
 import { initTheme, updateThemeLabels } from './theme-switch.js';
 import {renderMailBody} from './mail-reader.js';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -12,7 +12,7 @@ const I18N={
 };
 let locale='zh-CN';
 let reminderDefaults={offsets:[4320,1440,120,30],repeat:1440,start:'08:00',end:'23:00'};
-function detectLocale(){const saved=localStorage.getItem('campus-locale');if(saved&&I18N[saved])return saved;const nav=String(navigator.language||navigator.languages?.[0]||'').toLowerCase();if(nav.startsWith('zh')){if(/(?:hk|tw|mo|hant)/.test(nav))return 'zh-TW';return 'zh-CN';}return 'en';}
+function detectLocale(){const saved=localStorage.getItem('campus-locale');if(saved&&I18N[saved])return saved;return 'en';}
 function applyLocale(next){locale=I18N[next]?next:'zh-CN';document.documentElement.lang=locale;document.title=I18N[locale].appName;const metaDescription=$('meta[name=description]');if(metaDescription&&I18N[locale].appDescription)metaDescription.content=I18N[locale].appDescription;for(const el of $$('[data-i18n]')){const value=I18N[locale][el.dataset.i18n];if(value!==undefined)el.innerHTML=value;}for(const el of $$('[data-i18n-placeholder]')){const value=I18N[locale][el.dataset.i18nPlaceholder];if(value!==undefined)el.placeholder=value;}for(const el of $$('[data-i18n-aria]')){const value=I18N[locale][el.dataset.i18nAria];if(value!==undefined)el.setAttribute('aria-label',value);}const staticText={'.login h1':'heroTitle','.login>p':'heroSubtitle','.private':'personalAccount','.tasks-eyebrow':'tasksEyebrow'};for(const [selector,key] of Object.entries(staticText)){const el=$(selector),value=I18N[locale][key];if(el&&value!==undefined)el.innerHTML=value;}const logoutButton=$('#logout');if(logoutButton)logoutButton.setAttribute('aria-label',tx('logout'));translateTextNodes();updateManifestLocale();}
 function updateManifestLocale(){const link=$('link[rel=manifest]');if(!link)return;if(!link.dataset.src)link.dataset.src=link.href;fetch(link.dataset.src).then(response=>response.ok?response.json():null).then(manifest=>{if(!manifest)return;manifest.name=I18N[locale].appName;manifest.short_name=I18N[locale].appName;manifest.lang=locale;if(I18N[locale].appDescription)manifest.description=I18N[locale].appDescription;link.href=URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'}));}).catch(()=>{});}
 const tx=key=>I18N[locale]?.[key]||I18N['zh-CN'][key]||key;
@@ -135,10 +135,12 @@ function toast(s){$('#toast').textContent=translateCopy(s);$('#toast').classList
 function accountLabel(account){const nickname=String(account?.nickname||'').trim();return nickname||`${tx('defaultNickname')} ${String(account?.userCode||'0000')}`;}
 function setAvatar(value,fallback='U'){const el=$('#avatar');el.textContent='';if(/^data:image\//.test(value||'')){const img=document.createElement('img');img.src=value;img.alt='';el.append(img);}else el.textContent=value||fallback;}
 const sessionTab=sessionStorage.getItem('campus-session-tab')||crypto.randomUUID();sessionStorage.setItem('campus-session-tab',sessionTab);
-async function api(path,options={}){const response=await fetch('/api/'+path,{...options,headers:{'Content-Type':'application/json','X-Locale':locale,'X-Session-Tab':sessionTab,...options.headers},body:options.body===undefined?undefined:JSON.stringify(options.body)});let data;try{data=await response.json();}catch{throw Error('服务暂时不可用，请稍后重试');}if(!response.ok){if(response.status===401&&!['login','register','recovery/question','recovery/reset'].includes(path))showLogin();throw Error(translateCopy(data.error||'操作失败'));}return data;}
+async function api(path,options={}){const response=await fetch('/api/'+path,{...options,headers:{'Content-Type':'application/json','X-Locale':locale,'X-Session-Tab':sessionTab,...options.headers},body:options.body===undefined?undefined:JSON.stringify(options.body)});let data;try{data=await response.json();}catch{throw Error('服务暂时不可用，请稍后重试');}if(!response.ok){if(response.status===401&&!['login','register','recovery/question','recovery/reset'].includes(path)){signedIn=false;if(!booting)showLogin();}throw Error(translateCopy(data.error||'操作失败'));}return data;}
 function showLogin(){
-  $('#app').classList.add('hidden');$('#login').classList.remove('hidden');ensureHero();
-  if(location.search)history.replaceState(null,'','/');
+  $('#app').classList.add('hidden');$('#pub').classList.add('hidden');$('#login').classList.remove('hidden');ensureHero();
+  pendingTarget=workspaceRoute(location.search)||pendingTarget;
+  hideMailReader();
+  if($('#task-dialog').open)$('#task-dialog').close();
   applyLocale(localStorage.getItem('campus-locale')||detectLocale());
   $$('[data-login-locale]').forEach(b=>b.classList.toggle('selected',b.dataset.loginLocale===locale));
 }
@@ -167,6 +169,7 @@ function renderTasks(){
 async function loadTasks(){tasks=await api('tasks');renderTasks();translateTextNodes();}
 // ES module imports are hoisted, so these work even though they are not at the very top.
 // (They sit here because test/localization.test.js evaluates the top of this file as a plain script.)
+import { WORKSPACE_VIEWS, workspaceRoute, workspaceUrl } from './workspace-route.js';
 import { TaskReminderPicker } from './task-reminders.js';
 import { playButtonSuccess, resetSuccessButton, circularTransition, setupCardStack } from './motion.js';
 import { watchTimeInputs } from './native-pickers.js';
@@ -928,7 +931,6 @@ function wireMailDetail(){
   const dialog=$('#mail-detail-dialog');if(!dialog||dialog.dataset.wired)return;dialog.dataset.wired='1';
   const close=()=>{if(history.state?.mailReader)history.back();else{hideMailReader();view('mail');}};
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialog.classList.contains('hidden'))close();});
-  window.addEventListener('popstate',()=>{const id=new URLSearchParams(location.search).get('message');if(id)openMailDetail(id,{push:false});else hideMailReader();});
   $('#close-mail-detail')?.addEventListener('click',close);
   $('#mail-detail-done')?.addEventListener('click',close);
   dialog.querySelectorAll('[data-mail-pane]').forEach(btn=>btn.onclick=()=>{
@@ -938,7 +940,7 @@ function wireMailDetail(){
   });
 }
 async function restorePush(){try{if(!('Notification'in window)||Notification.permission!=='granted'||!('serviceWorker'in navigator))return;const registration=await navigator.serviceWorker.register('/sw.js');const sub=await registration.pushManager.getSubscription();if(sub)await api('subscriptions',{method:'POST',body:sub.toJSON()});}catch(error){console.warn('Notification subscription refresh failed',error);}}
-async function boot(){wireMailDetail();wireMailSearch();try{await api('session/tab',{method:'POST',body:{}});status=await api('status');restorePush();const profile=await api('profile');reminderDefaults=profile.reminders||reminderDefaults;applyLocale(status.account.locale||localStorage.getItem('campus-locale')||'zh-CN');localStorage.setItem('campus-locale',locale);$('#login').classList.add('hidden');$('#app').classList.remove('hidden');ensureDock();$('#account-label').textContent=accountLabel(status.account);setAvatar(status.account.avatar,accountLabel(status.account).slice(0,1).toUpperCase());$('#date-label').textContent=new Date().toLocaleDateString(dateLocale(),{timeZone:'Asia/Hong_Kong',year:'numeric',month:'long',day:'numeric',weekday:'long'});await loadTasks();const params=new URLSearchParams(location.search),v=params.get('view'),message=params.get('message');view(['groups','mail','digests','settings'].includes(v)?v:'tasks');if(message){history.replaceState(null,'','/?view=mail&message='+encodeURIComponent(message));openMailDetail(message,{push:false});}}catch(e){if(!$('#app').classList.contains('hidden'))$('#global-error').textContent=e.message;else showLogin();}}
+async function boot(){booting=true;wireMailDetail();wireMailSearch();try{await api('session/tab',{method:'POST',body:{}});status=await api('status');restorePush();const profile=await api('profile');reminderDefaults=profile.reminders||reminderDefaults;applyLocale(status.account.locale||localStorage.getItem('campus-locale')||'zh-CN');localStorage.setItem('campus-locale',locale);signedIn=true;$('#login').classList.add('hidden');ensureDock();$('#account-label').textContent=accountLabel(status.account);setAvatar(status.account.avatar,accountLabel(status.account).slice(0,1).toUpperCase());$('#date-label').textContent=new Date().toLocaleDateString(dateLocale(),{timeZone:'Asia/Hong_Kong',year:'numeric',month:'long',day:'numeric',weekday:'long'});await loadTasks();routeAfterBoot();}catch(e){if(!$('#app').classList.contains('hidden'))$('#global-error').textContent=e.message;else{if(!signedIn&&(workspaceRoute(location.search)||pendingTarget))showLogin();else showPublic(publicRoute());if(signedIn)toast(e.message);}}finally{booting=false;}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!$('#app').classList.contains('hidden'))loadTasks().catch(e=>toast(e.message));});
 
 function announcementText(item){if(item.kind==='meeting-change')return {title:item.title,body:item.body==='cancel'?local('会议已取消','會議已取消','Meeting cancelled'):local('会议已改期，请重新提交可用时间','會議已改期，請重新提交可用時間','Meeting rescheduled. Submit availability again.')};if(item.kind==='meeting'){const poll=groupState.meetingPolls.find(p=>p.id===item.source_id);if(poll)return {title:local('会议时间已确认：','會議時間已確認：','Meeting confirmed: ')+poll.name,body:fmt(poll.confirmed_start)+' · '+poll.duration_minutes+' '+local('分钟','分鐘','minutes')};}return item;}
@@ -964,6 +966,84 @@ async function renderMailSuggestions(){
  $$('[data-dismiss-mail]').forEach(b=>b.onclick=()=>runAction(b,()=>api('mail-suggestions/'+b.dataset.dismissMail,{method:'POST',body:{decision:'reject'}}),renderMailSuggestions));
  $$('[data-source-mail]').forEach(b=>b.onclick=()=>openMailDetail(b.dataset.sourceMail));
 }
+
+// ===== Public home and hub pages (i4i) =====
+// The public screens live in #pub. They never read private data; every workspace link goes through
+// openWorkspace(), which asks for sign-in first and returns to the chosen page afterwards.
+const PUB_TEXT={
+ en:{pubHome:'Home',pubSignIn:'Sign In',pubSignOut:'Sign Out',pubSettings:'Settings',pubAcademic:'Academic',pubLife:'Campus Life',pubEmail:'Email Assistant',pubTasks:'Tasks',pubGroups:'Groups',pubDigest:'Daily Digest',pubPlanner:'Academic Planner',pubReviews:'Course Reviews',pubNotes:'Study Notes',pubEvents:'Events',pubCommunity:'Community',pubInterest:'Interest Groups',pubSecondHand:'Second-hand Exchange',pubSoon:'Coming Soon',pubSoonToast:'Coming soon'},
+ 'zh-CN':{pubHome:'主页',pubSignIn:'登录',pubSignOut:'退出登录',pubSettings:'设置',pubAcademic:'学业',pubLife:'校园生活',pubEmail:'邮件助手',pubTasks:'待办',pubGroups:'小组',pubDigest:'日报与提醒',pubPlanner:'学业规划',pubReviews:'课程评价',pubNotes:'学习笔记',pubEvents:'活动',pubCommunity:'社区',pubInterest:'兴趣小组',pubSecondHand:'二手交换',pubSoon:'即将推出',pubSoonToast:'即将推出'},
+ 'zh-TW':{pubHome:'主頁',pubSignIn:'登入',pubSignOut:'登出',pubSettings:'設定',pubAcademic:'學業',pubLife:'校園生活',pubEmail:'郵件助手',pubTasks:'待辦',pubGroups:'小組',pubDigest:'日報與提醒',pubPlanner:'學業規劃',pubReviews:'課程評價',pubNotes:'學習筆記',pubEvents:'活動',pubCommunity:'社群',pubInterest:'興趣小組',pubSecondHand:'二手交換',pubSoon:'即將推出',pubSoonToast:'即將推出'}
+};
+for(const [lang,texts] of Object.entries(PUB_TEXT))Object.assign(I18N[lang],texts);
+const PUB_SCREENS={home:'#home',academic:'#hub-academic',life:'#hub-life'};
+let signedIn=false,booting=false,pendingTarget=null,pubLogoMounted=false,pubCurrent='home';
+function publicRoute(){const name=location.hash.slice(1);return PUB_SCREENS[name]?name:'home';}
+function pubTitle(){document.title=pubCurrent==='home'?'Campus Companion':tx(pubCurrent==='academic'?'pubAcademic':'pubLife')+' · Campus Companion';}
+function closePubMenu(){$('#pub-menu').classList.add('hidden');$('#pub-avatar').setAttribute('aria-expanded','false');}
+function renderPubAccount(){
+  $('#pub-signin').classList.toggle('hidden',signedIn);$('#pub-account').classList.toggle('hidden',!signedIn);
+  if(signedIn)$('#pub-avatar').replaceChildren(...[...$('#avatar').childNodes].map(node=>node.cloneNode(true)));
+}
+function showPublic(name='home'){
+  pubCurrent=PUB_SCREENS[name]?name:'home';
+  $('#app').classList.add('hidden');$('#login').classList.add('hidden');$('#pub').classList.remove('hidden');
+  for(const [key,selector] of Object.entries(PUB_SCREENS))$(selector).classList.toggle('hidden',key!==pubCurrent);
+  $('#pub-back').classList.toggle('hidden',pubCurrent==='home');
+  if(!pubLogoMounted){mountIcon($('#pub-logo'));pubLogoMounted=true;}
+  $$('[data-pub-locale]').forEach(button=>{const on=button.dataset.pubLocale===locale;button.classList.toggle('selected',on);button.setAttribute('aria-pressed',String(on));});
+  renderPubAccount();closePubMenu();pubTitle();window.scrollTo(0,0);
+}
+function navigatePublic(name){pendingTarget=null;hideMailReader();if($('#task-dialog').open)$('#task-dialog').close();history.pushState(null,'',name==='home'?'/':'/#'+name);showPublic(name);}
+function enterApp(){$('#pub').classList.add('hidden');$('#login').classList.add('hidden');$('#app').classList.remove('hidden');document.title=tx('appName');window.scrollTo(0,0);}
+function openWorkspace(name){
+  if(!WORKSPACE_VIEWS.includes(name))return;
+  const route={view:name};
+  history.pushState(null,'',workspaceUrl(route));
+  if(!signedIn){pendingTarget=route;showLogin();return;}
+  routeAfterBoot();
+}
+// The URL retains the destination while signed out, including across reloads.
+function routeAfterBoot(){
+  const route=workspaceRoute(location.search)||pendingTarget;pendingTarget=null;
+  hideMailReader();if($('#task-dialog').open)$('#task-dialog').close();
+  if(!route){showPublic(publicRoute());return;}
+  enterApp();view(route.view);
+  history.replaceState(history.state,'',workspaceUrl(route));
+  if(route.message){openMailDetail(route.message,{push:false});return;}
+  if(route.task){
+    const task=tasks.find(item=>item.id===route.task);
+    if(task){showDone=!!task.completed;progressPeriod='all';$('#show-pending').classList.toggle('selected',!showDone);$('#show-completed').classList.toggle('selected',showDone);renderTasks();openForm(task);}
+    else toast(local('任务不存在或无法访问','任務不存在或無法存取','Task not found or unavailable'));
+  }
+}
+document.addEventListener('click',event=>{
+  const go=event.target.closest('#pub [data-go]');if(go){event.preventDefault();navigatePublic(go.dataset.go);return;}
+  const open=event.target.closest('#pub [data-open]');if(open){event.preventDefault();openWorkspace(open.dataset.open);return;}
+  const soon=event.target.closest('#pub [data-soon]');
+  if(soon){soon.classList.remove('nudge');void soon.offsetWidth;soon.classList.add('nudge');toast(tx('pubSoonToast'));return;}
+  const menuItem=event.target.closest('#pub [data-pub-open]');if(menuItem){closePubMenu();openWorkspace(menuItem.dataset.pubOpen);return;}
+  if(!event.target.closest('#pub-account'))closePubMenu();
+});
+$('#pub-back').onclick=()=>navigatePublic('home');
+$('#pub-logo-btn').onclick=()=>{if(pubCurrent!=='home')navigatePublic('home');else window.scrollTo({top:0,behavior:'smooth'});};
+$('#pub-signin').onclick=()=>{pendingTarget=null;showLogin();};
+$('#pub-avatar').onclick=()=>{const menu=$('#pub-menu'),open=menu.classList.contains('hidden');menu.classList.toggle('hidden',!open);$('#pub-avatar').setAttribute('aria-expanded',String(open));};
+$('#pub-signout').onclick=()=>{closePubMenu();logout();};
+$('#login-back').onclick=()=>navigatePublic(publicRoute());
+$('#go-home').onclick=()=>navigatePublic('home');
+$('aside .brand').onclick=()=>navigatePublic('home');
+$$('[data-pub-locale]').forEach(button=>button.onclick=()=>{
+  const next=button.dataset.pubLocale;localStorage.setItem('campus-locale',next);applyLocale(next);
+  $$('[data-pub-locale]').forEach(b=>{const on=b===button;b.classList.toggle('selected',on);b.setAttribute('aria-pressed',String(on));});
+  pubTitle();if(signedIn)api('profile',{method:'PATCH',body:{locale:next}}).catch(()=>{});
+});
+window.addEventListener('popstate',()=>{
+  if(booting)return;
+  const route=workspaceRoute(location.search);
+  if(route){if(signedIn)routeAfterBoot();else{pendingTarget=route;showLogin();}return;}
+  pendingTarget=null;hideMailReader();if($('#task-dialog').open)$('#task-dialog').close();showPublic(publicRoute());
+});
 
 loadSettings=loadSettingsProfile;
 const localeObserver=new MutationObserver(()=>translateTextNodes());
