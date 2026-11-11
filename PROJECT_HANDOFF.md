@@ -45,7 +45,7 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 | Groups (tasks, availability, meeting vote) | Yes | Reported earlier, not re-verified | |
 | Mail summary, rule-based fallback | Yes | Not verified | Used when AI is off |
 | Mail AI summary / extraction | Yes | **Off** | Needs `ENABLE_AI` = "true" **and** an `ai` binding; the binding is not in `wrangler.i4i.jsonc` |
-| Outlook OAuth | Yes | Awaiting Microsoft app credentials | Production `APP_ORIGIN` and `TOKEN_KEY` are configured. Needs a Web callback registration, `MS_CLIENT_ID`, and `MS_CLIENT_SECRET`. |
+| Outlook OAuth | Yes | Authorisation start verified | Production secrets configured. A signed-in test account reached Microsoft sign-in with the new app and correct Web callback. User consent, token exchange, and mail sync remain to be verified. |
 | iPhone Shortcut ingestion | Yes | Not configured | Needs `SHORTCUT_INGEST_KEY` |
 | Web Push | Yes | Unverified | Needs VAPID secrets |
 | Cron (reminders, digests) | `scheduled()` exists | **Off** | No cron trigger in `wrangler.i4i.jsonc` |
@@ -60,7 +60,7 @@ Use this format: Completed changes / Files modified / Commit SHA and branch / De
 - **2026-11-11 — Outlook configuration diagnosis.**
   - Verified the pre-rename and current i4i deployments both lacked the Microsoft credentials and encryption key. Confirmed the i4i D1 had zero Outlook connections and added a new production `TOKEN_KEY` to `campus-common` only.
   - Cloudflare deployed version `eddc1b3e-49b1-4f81-8943-8dcbd043e8cd` at 100%. Homepage and settings entry returned HTTP 200. Signed-out status and OAuth start returned HTTP 401.
-  - Register the exact Web callback and set the Microsoft credentials following `docs/OUTLOOK_SETUP.md`. Outlook consent and mail sync still need a live test.
+  - The owner registered the new Campus Common app and deployed its client secret. All three secret bindings are active in production version `11dffc5a-3b71-4238-9e12-a31e4e9c7d7a`. A temporary account saw `outlookConfigured: true` and the expected Microsoft authorisation redirect with the new callback and `Mail.Read`. Microsoft redirected to sign-in. The temporary account and its OAuth state were removed. User consent, token exchange and mail sync remain to be verified.
 
 - **2026-11-10 — Codex, Campus Common naming and unified homepage (owner requested).**
   - Every visible brand, login/sidebar title, PWA name and notification title now uses Campus Common in EN / 简 / 繁. Retained logo and existing internal account/database identifiers.
