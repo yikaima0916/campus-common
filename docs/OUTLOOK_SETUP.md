@@ -1,68 +1,41 @@
 # Outlook connector setup
 
-The connector is implemented but remains disabled until a deployer supplies a Microsoft application and four environment values. Campus Companion uses delegated access: it reads only the mailbox selected by the signed-in user. It requests `User.Read` and `Mail.Read`; it does not request `Mail.Send`.
-
-Microsoft documents `Mail.Read` as delegated access to the signed-in user's mailbox and supports personal Microsoft accounts. See the [Microsoft Graph permission reference](https://learn.microsoft.com/graph/permissions-reference) and [redirect URI guidance](https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-redirect-uri).
+Campus Common connects a personal Outlook or Hotmail mailbox using delegated Microsoft Graph access. The connector requests `User.Read`, `Mail.Read`, and `offline_access` to read and synchronise mail.
 
 ## 1. Register the Microsoft application
 
-1. Open Microsoft Entra admin center → **App registrations** → **New registration**.
-2. Select an account type that includes personal Microsoft accounts. The current connector uses the `consumers` authorization endpoint.
-3. Add a **Web** redirect URI:
+1. In the [Microsoft Entra admin center](https://entra.microsoft.com/), open **App registrations**. Use the app dedicated to Campus Common i4i, or register a new one named **Campus Common**.
+2. Select an account type that supports personal Microsoft accounts. The connector uses the `consumers` authorisation endpoint.
+3. Under **Authentication**, add this exact redirect URI using the **Web** platform:
 
    ```text
-   https://YOUR_WORKER_DOMAIN/api/outlook/callback
+   https://campus-common.campus-companion.workers.dev/api/outlook/callback
    ```
 
-4. Under **API permissions**, add delegated Microsoft Graph permissions:
-   - `User.Read`
-   - `Mail.Read`
-5. Create a client secret. Copy its **value** immediately; do not commit it.
+4. Under **API permissions**, add the delegated Microsoft Graph permissions `User.Read` and `Mail.Read`.
+5. Copy the **Application (client) ID** from **Overview**. Under **Certificates & secrets**, create a client secret and save its **Value** when it appears.
 
-## 2. Configure local development
+See [app registration](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app), [redirect URIs](https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-redirect-uri), and [application credentials](https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-credentials).
 
-Create `.dev.vars` in the repository root. It is ignored by Git.
+## 2. Configure the production Worker
 
-```dotenv
-MS_CLIENT_SECRET=replace-with-secret-value
-TOKEN_KEY=replace-with-32-byte-base64-key
-```
+Open [Cloudflare](https://dash.cloudflare.com/) → **Workers & Pages** → **campus-common** → **Settings** → **Variables and Secrets**. Add both values and deploy:
 
-Generate `TOKEN_KEY` with Node.js:
+| Name | Type | Value |
+| --- | --- | --- |
+| `MS_CLIENT_ID` | Secret | Application (client) ID |
+| `MS_CLIENT_SECRET` | Secret | Client secret **Value** |
 
-```powershell
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
+The Worker already has `APP_ORIGIN=https://campus-common.campus-companion.workers.dev` and its own `TOKEN_KEY`. Preserve the key after connections are created because it encrypts their stored OAuth tokens. Keep all secret values in Cloudflare and verify the bindings after future releases. [Cloudflare secrets documentation](https://developers.cloudflare.com/workers/configuration/secrets/)
 
-In `wrangler.jsonc`, set non-secret values:
+## 3. Verify
 
-```jsonc
-"vars": {
-  "MS_CLIENT_ID": "your-application-client-id",
-  "APP_ORIGIN": "http://localhost:8787"
-}
-```
+1. Open [Campus Common settings](https://campus-common.campus-companion.workers.dev/?view=settings) after signing in. The **Connected email** card should show the connect form.
+2. Connect the personal Outlook or Hotmail mailbox that receives forwarded school mail. Check the requested permissions on Microsoft's consent page.
+3. Run **Sync now** and check that a forwarded school message appears.
 
-The local redirect URI must also be registered in Microsoft Entra if it is used for local OAuth testing.
+Disconnecting Outlook deletes the stored authorisation for that Campus Common account. Existing structured summaries remain until the user deletes them.
 
-## 3. Configure Cloudflare deployment
+## Local development
 
-Set `MS_CLIENT_ID` and the public production `APP_ORIGIN` in the deployed Worker configuration. Store secrets with Wrangler:
-
-```powershell
-pnpm exec wrangler secret put MS_CLIENT_SECRET
-pnpm exec wrangler secret put TOKEN_KEY
-```
-
-Apply migrations and deploy only after the production redirect URI exactly matches the URI registered with Microsoft.
-
-## 4. Verify
-
-1. Open **Settings → Outlook school mail**.
-2. Confirm that no missing-configuration names are shown.
-   Placeholder values such as `REPLACE_WITH_...` are treated as missing, and `APP_ORIGIN` must match the origin currently serving the app.
-3. Connect the personal Outlook mailbox that receives forwarded school messages.
-4. Verify the Microsoft consent page requests read access and does not request send access.
-5. Run **Sync now** and check that only school-forwarded messages appear.
-
-Disconnecting Outlook deletes the stored authorization for that Campus Companion account. Existing structured summaries remain until the user deletes them.
+Register the local Web callback `http://localhost:8787/api/outlook/callback` if testing OAuth locally. In the git-ignored `.dev.vars`, set `APP_ORIGIN=http://localhost:8787`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, and a separate local `TOKEN_KEY` containing 32 random bytes encoded as Base64. Start the Worker with `pnpm exec wrangler dev --config wrangler.i4i.jsonc`.
