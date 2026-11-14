@@ -248,8 +248,9 @@ const englishBriefIsUsable=brief=>!!brief&&![brief.title,brief.topic,...(brief.p
 function briefContent(m,compact=false){
   const b=m.brief;
   if(!b)return `<p class="quality">${esc(local('正在依据原文整理详细要点；若未生成，可稍后重试。','正在依據原文整理詳細重點；若未產生，可稍後重試。','Preparing detailed notes from the original email. Retry later if unavailable.'))}</p>`;
+  const label=b.fallback?local('邮件速览 · AI 摘要暂不可用','郵件速覽 · AI 摘要暫不可用','Email quick view · AI summary unavailable'):local('AI 摘要','AI 摘要','AI summary');
   const points=compact?b.points.slice(0,2):b.points;
-  return `<ul class="mail-points">${points.map(p=>`<li data-user-content>${esc(p.text)}</li>`).join('')}</ul>${b.actions.length?`<div class="brief-actions"><strong>${local('邮件中的请求','郵件中的請求','Requests in this email')}</strong><ul>${b.actions.map(p=>`<li data-user-content>${esc(p.text)}</li>`).join('')}</ul></div>`:''}`;
+  return `<p class="quality">${esc(label)}</p><ul class="mail-points">${points.map(p=>`<li data-user-content>${esc(p.text)}</li>`).join('')}</ul>${b.actions.length?`<div class="brief-actions"><strong>${local('邮件中的请求','郵件中的請求','Requests in this email')}</strong><ul>${b.actions.map(p=>`<li data-user-content>${esc(p.text)}</li>`).join('')}</ul></div>`:''}`;
 }
 // ---------- 日报专属摘要渲染 ----------
 // 与邮件页的 briefContent 区分开：日报用更紧凑的简报风格，带明确的"AI 详细要点"标识，
@@ -259,7 +260,7 @@ function digestBriefContent(m){
   if(!b)return '';
   const points=b.points||[];
   const actions=b.actions||[];
-  let html=`<div class="dg-brief"><p class="dg-brief-label">${esc(local('AI 详细要点','AI 詳細重點','AI detailed notes'))}</p><ul class="dg-brief-points">`;
+  let html=`<div class="dg-brief"><p class="dg-brief-label">${esc(b.fallback?local('原文摘录','原文摘錄','Source excerpt'):local('AI 详细要点','AI 詳細重點','AI detailed notes'))}</p><ul class="dg-brief-points">`;
   html+=points.map(p=>`<li data-user-content>${esc(p.text)}</li>`).join('');
   html+=`</ul>`;
   if(actions.length){
@@ -274,7 +275,7 @@ async function prepareBriefs(rows,onUpdate,isCurrent,opts={}){
   // Briefs are generated on demand (original mail fetch + AI), two mails per request.
   // `live` also reports per-row loading/error state so the page can show progress, and
   // `concurrency` runs several requests side by side.
-  const queue=rows.filter(m=>m.id&&!m.brief&&!m.briefLoading),batches=[];
+  const queue=rows.filter(m=>m.id&&!m.brief&&!m.briefLoading).slice(0,2),batches=[];
   for(let i=0;i<queue.length;i+=2)batches.push(queue.slice(i,i+2));
   let warned=false;
   const worker=async()=>{
@@ -285,7 +286,7 @@ async function prepareBriefs(rows,onUpdate,isCurrent,opts={}){
         if(!briefRequests.has(key))briefRequests.set(key,Promise.race([api('mail/briefs',{method:'POST',body:{ids}}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),60000))]));
         const result=await briefRequests.get(key),results=result.results||[];
         for(const row of batch){const item=results.find(r=>r.id===row.id);row.briefLoading=false;if(item?.brief)row.brief=item.brief;row.briefError=!item||!!item.error;}
-        if(results.length&&results.every(r=>r.error)){
+        if(results.length&&results.every(r=>r.error||r.brief?.fallback)){
           if(!warned){warned=true;toast(local('暂时无法生成详细摘要，已显示邮件速览。','暫時無法產生詳細摘要，已顯示郵件速覽。','Detailed summary is temporarily unavailable; showing a quick view.'));}
           batches.length=0; // do not hammer the service when everything fails
         }
@@ -299,7 +300,7 @@ async function prepareBriefs(rows,onUpdate,isCurrent,opts={}){
 function briefFallback(m){
   if(m.briefError)return `<p class="quality">${local('详细摘要暂未生成，请确认邮箱连接后刷新重试。可点击邮件查看原文。','詳細摘要暫未產生，請確認電郵連接後重新整理。可點擊郵件查看原文。','Detailed summary unavailable. Check your mailbox connection and refresh to retry. Open the email to read the original.')}</p>`;
   // 如果有本地化摘要，先显示它，而不是卡在"正在整理"
-  if(m.summary)return `<p class="mail-summary-preview" data-user-content>${esc(m.summary)}</p>`;
+  if(m.summary)return `<p class="quality">${esc(local('邮件速览','郵件速覽','Email quick view'))}</p><p class="mail-summary-preview" data-user-content>${esc(m.summary)}</p>`;
   return briefContent(m);
 }
 function mailCard(m){
@@ -479,24 +480,39 @@ async function openMailDetail(id,{push=true}={}){
     const subject=String(detail.english?.subject||display.subject||'').replace(/^(?:(?:fw|fwd|re)\s*:\s*)+/i,'');
     $('#mail-detail-title').textContent=englishBrief?.title||safe(subject,'Original email');
     $('#mail-detail-meta').innerHTML=`<span class="badge">${esc(safe(englishBrief?.topic||tx(categoryKey(detail.category)),'Email'))}</span><span>${esc(safe(display.sender,'Sender unavailable'))}</span><span>${esc(safe(display.origin,'Source not identified'))}</span><time>${esc(fmt(detail.received))}</time>`;
-    $('#mail-detail-zh').innerHTML=englishUi?'':display.brief?briefContent(display):`<p data-user-content>${esc(display.summary||'')}</p>`;
-    $('#mail-detail-zh').classList.toggle('hidden',englishUi);
+    const zhPane=$('#mail-detail-zh'),enPane=$('#mail-detail-en');
+    zhPane.innerHTML=display.brief?briefContent(display):'';
     const original=renderMailBody(detail.english||{});
-    $('#mail-detail-en').replaceChildren(original);
-    if(!englishUi&&detail.chinese?.fullBody){
-      const translated=renderMailBody({body:detail.chinese.fullBody});
-      $('#mail-detail-zh').replaceChildren(translated);
-    }else if(!englishUi&&detail.translationEnabled){
-      if(!display.brief){
-        const summary=String(display.summary||'').trim();
-        $('#mail-detail-zh').replaceChildren();
-        if(summary&&!/^[_\-\s]*(?:From|发件人|寄件者)\s*[:：]/i.test(summary))$('#mail-detail-zh').append(Object.assign(document.createElement('p'),{textContent:summary}));
-      }
+    enPane.replaceChildren(original);
+    if(!detail.english?.available){
       const notice=document.createElement('p');
-      notice.textContent=detail.translationStatus==='quota'
-        ?local('全文翻译暂不可用：AI 服务今日用量已达上限。英文原文仍可查看，额度恢复后再次打开即可生成译文。','全文翻譯暫不可用：AI 服務今日用量已達上限。英文原文仍可查看，額度恢復後再次開啟即可生成譯文。','Full translation is temporarily unavailable because the AI daily limit has been reached. The original is still available; reopen this email after the limit resets to generate a translation.')
-        :local('全文翻译暂时无法生成，英文原文仍可在「原文」中查看，请稍后重试。','全文翻譯暫時無法生成，英文原文仍可在「原文」中查看，請稍後重試。','The full translation could not be generated. The original is available in “Original”; please try again later.');
-      $('#mail-detail-zh').append(notice);
+      notice.textContent=local('完整原文暂不可用。请检查 Outlook 连接，或在 Outlook 查看。','完整原文暫不可用。請檢查 Outlook 連接，或在 Outlook 查看。','The complete original is unavailable. Check the Outlook connection or open it in Outlook.');
+      enPane.prepend(notice);
+    }
+    if(englishUi&&englishBrief){
+      const summary=document.createElement('section');
+      summary.innerHTML=briefContent({...display,brief:englishBrief});
+      enPane.prepend(summary);
+    }
+    if(!englishUi&&detail.chinese?.fullBody){
+      const heading=document.createElement('h3');
+      heading.textContent=tx('mailChinese');
+      zhPane.append(heading,renderMailBody({body:detail.chinese.fullBody}));
+    }else if(!englishUi&&detail.translationEnabled){
+      const notice=document.createElement('p');
+      notice.textContent=detail.translationStatus==='source-unavailable'
+        ?local('缺少完整原文，无法提供全文翻译。','缺少完整原文，無法提供全文翻譯。','The complete original is required for full translation.')
+        :detail.translationStatus==='quota'
+          ?local('AI 用量暂达上限，额度恢复后可重试。','AI 用量暫達上限，額度恢復後可重試。','The AI limit has been reached. Retry after it resets.')
+          :local('全文翻译暂不可用。','全文翻譯暫不可用。','Full translation is temporarily unavailable.');
+      zhPane.append(notice);
+      if(detail.translationStatus!=='disabled'){
+        const retry=document.createElement('button');
+        retry.type='button';
+        retry.textContent=local('重试','重試','Retry');
+        retry.onclick=()=>openMailDetail(id,{push:false});
+        zhPane.append(retry);
+      }
     }
     if(!englishUi){
       const shown=new Set([...$('#mail-detail-zh').querySelectorAll('img')].map(img=>img.src));
@@ -511,7 +527,7 @@ async function openMailDetail(id,{push=true}={}){
     if(!detail.translationEnabled)selectPane('en');
     const link=$('#mail-detail-outlook');
     if(/^https:\/\/(?:outlook\.live\.com|outlook\.office\.com|outlook\.office365\.com)\//.test(detail.url||'')){link.hidden=false;link.href=detail.url;link.textContent=tx('viewOriginal');}
-  }catch(e){if(request===readerRequest){$('#mail-detail-title').textContent=tx('mailDetail');$('#mail-detail-zh').textContent=e.message;}}
+  }catch(e){if(request===readerRequest){$('#mail-detail-title').textContent=tx('mailDetail');$(englishUi?'#mail-detail-en':'#mail-detail-zh').textContent=e.message;}}
 }
 let currentMailQuery='';
 async function loadMail(opts={}){

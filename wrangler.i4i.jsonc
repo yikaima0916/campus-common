@@ -19,8 +19,10 @@
       "migrations_dir": "migrations"
     }
   ],
+  "ai": { "binding": "AI" },
   "vars": {
     "APP_ORIGIN": "https://campus-common.campus-companion.workers.dev",
-    "ENABLE_AI": "false"
+    "ENABLE_AI": "true",
+    "MAIL_AI_DAILY_NEURONS": "3000"
   }
 }
