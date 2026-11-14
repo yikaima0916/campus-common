@@ -18,7 +18,7 @@ export function renderMailBody({html,body,images={}},doc=document){
  if(!html){
    const text=compactPlainBody(body);
    let offset=0;
-   for(const match of text.matchAll(/\[(https:\/\/[^\]\s]+\.(?:png|jpe?g|gif|webp)(?:\?[^\]\s]*)?)\]|https:\/\/[^\s<>]+/gi)){
+   for(const match of text.matchAll(/\[(https:\/\/[^\]\s]+\.(?:png|jpe?g|gif|webp)(?:\?[^\]\s]*)?)\]|https:\/\/[A-Za-z0-9._~:\/?#\[\]@!$&\x27()*+,;=%-]+/gi)){
      root.append(doc.createTextNode(text.slice(offset,match.index)));
      if(match[1]){
        const img=doc.createElement('img');

@@ -268,7 +268,7 @@ async function routes(request,env,ctx){
     const wantZh=locale.startsWith('zh')&&prefs.translateZh!==false;
     const localizedRows=await localizeMessages(env,account.user_id,locale,[row],{allowAi:env.ENABLE_AI==='true',translate:wantZh||locale==='en',nameAliases:aliasRules});
     const localized=locale==='en'?(localizedRows[0]||row):applyPreferredNameToFields(localizedRows[0]||row,aliasRules);
-    const brief=await generateBrief(env,account.user_id,locale,id,fetched);
+    const briefPromise=generateBrief(env,account.user_id,locale,id,fetched);
     let fullTranslation=null,translationStatus='disabled';
     if(wantZh){
       if(!fetched.originalAvailable)translationStatus='source-unavailable';
@@ -289,7 +289,7 @@ async function routes(request,env,ctx){
       quality:localized.quality||row.quality,
       chinese:wantZh?{subject:localized.subject,sender:localized.sender,origin:localized.origin,summary:localized.summary,action:localized.action,fullBody:applyNameAliases(fullTranslation,aliasRules)}:null,
       english:{subject:englishSubject,body:englishBody,available:fetched.originalAvailable,html:fetched.englishHtml,images:fetched.images,recipients:recipients||[],summary:prefs.englishSummary&&locale.startsWith('zh')?String(row.summary||''):undefined},
-      display:{...localized,brief},
+      display:{...localized,brief:await briefPromise},
       translationEnabled:wantZh,
       translationStatus,
       englishSummaryEnabled:prefs.englishSummary===true&&locale.startsWith('zh')

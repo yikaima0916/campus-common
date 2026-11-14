@@ -515,9 +515,8 @@ export async function translateFullBody(env,userId,locale,messageId,englishBody,
   if(block)chunks.push(block);
   const language=locale==='zh-TW'?'Traditional Chinese as used in Hong Kong (繁體中文)':'Simplified Chinese (简体中文)';
   const prefix=`fulltrans:v7:${locale}:${userId}:${await hash(messageId)}:${await hash(preferredZhName)}`;
-  const translated=[];
-  for(const chunk of chunks){
-    if(!chunk.trim()){translated.push(chunk);continue;}
+  const translateChunk=async chunk=>{
+    if(!chunk.trim())return chunk;
     const key=`${prefix}:${await hash(chunk)}`;
     let translation=await getKV(env,key);
     if(!translation){
@@ -547,7 +546,13 @@ export async function translateFullBody(env,userId,locale,messageId,englishBody,
       translation=normalizeMailChinese(result,locale);
       await setKV(env,key,translation);
     }
-    translated.push(chunk.match(/^\n+/)?.[0]||'',translation,chunk.match(/\n+$/)?.[0]||'');
+    return (chunk.match(/^\n+/)?.[0]||'')+translation+(chunk.match(/\n+$/)?.[0]||'');
+  };
+  const translated=[];
+  for(let offset=0;offset<chunks.length;offset+=3){
+    const batch=await Promise.all(chunks.slice(offset,offset+3).map(translateChunk));
+    if(batch.some(part=>part===null))return null;
+    translated.push(...batch);
   }
   return translated.join('');
 }
