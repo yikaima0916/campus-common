@@ -792,9 +792,18 @@ function candidateCard(candidate,isOwner){
   return `<article class="candidate-card"><span class="state-pill ${esc(candidate.status)}">${esc(stateLabel(candidate.status))}</span><h3 data-user-content>${esc(candidate.title)}</h3><p>${local('建议负责人：','建議負責人：','Proposed assignee: ')}${esc(assignee)} · ${esc(fmt(candidate.due))}</p><p class="next-action">${local('下一步：','下一步：','Next: ')}${next}</p>${candidate.notes?`<p>${esc(candidate.notes)}</p>`:''}${evidence?`<p class="evidence"><strong>依据</strong><br>${esc(evidence)}</p>`:''}</article>`;
 }
 
-function taskCard(task){
-  const mine=task.user_id===status.account.id,pending=task.acceptance_status==='pending',next=pending?(mine?local('需要你决定是否接受','需要你決定是否接受','You need to accept or decline'):local('等待 ','等待 ','Waiting for ')+memberName(task.user_id)+local(' 接受',' 接受',' to accept')):task.acceptance_status==='accepted'?(task.completed?local('负责人已完成','負責人已完成','Completed by assignee'):local('负责人正在执行','負責人正在執行','In progress')):local('负责人已拒绝，组长需要重新分配','負責人已拒絕，組長需要重新分配','Declined; the owner needs to reassign it');
-  return `<article class="group-task ${mine&&pending?'needs-action':''}"><div class="task-heading"><h3>${esc(task.title)}</h3><span class="state-pill ${esc(task.acceptance_status)}">${esc(stateLabel(task.acceptance_status))}</span></div><p>${local('负责人：','負責人：','Assignee: ')}${esc(memberName(task.user_id))} · ${esc(fmt(task.due))}</p><p class="next-action">${local('下一步：','下一步：','Next: ')}${esc(next)}</p>${task.notes?`<p>${esc(task.notes)}</p>`:''}${mine&&pending?`<div class="inline-actions"><button class="primary" data-assignment="accept" data-task-id="${esc(task.id)}">接受分工</button><button data-assignment="reject" data-task-id="${esc(task.id)}">拒绝分工</button></div>`:''}</article>`;
+function taskCard(task,owner){
+ const mine=task.user_id===status.account.id,pending=task.acceptance_status==='pending';
+ const state=task.completed?'completed':task.acceptance_status;
+ const label=pending?local('待接受','待接受','Awaiting acceptance'):stateLabel(state);
+ return `<article class="group-task group-work-item ${mine&&pending?'needs-action':''}">
+  <header class="group-work-head"><div class="task-heading"><h4 data-user-content>${esc(task.title)}</h4><span class="state-pill ${esc(state)}">${esc(label)}</span></div>
+   ${owner&&task.source!=='meeting'?workEditButton('tasks',task.id,'task'):''}</header>
+  <p class="group-work-meta"><span>${local('负责人：','負責人：','Assignee: ')}<b data-user-content>${esc(memberName(task.user_id))}</b></span>
+   <span>${task.due?esc(fmt(task.due)):local('无截止时间','無截止時間','No deadline')}</span></p>
+  ${task.notes?`<p class="group-work-notes" data-user-content>${esc(task.notes)}</p>`:''}
+  ${mine&&pending?`<div class="inline-actions"><button class="primary" type="button" data-assignment="accept" data-task-id="${esc(task.id)}">接受分工</button><button type="button" data-assignment="reject" data-task-id="${esc(task.id)}">拒绝分工</button></div>`:''}
+ </article>`;
 }
 
 function pollWorkspace(){
@@ -821,7 +830,7 @@ function openGroupInfo(){
  const {group,members,tasks}=groupState,root=$('#groups-content');
  root.innerHTML=`<section class="group-info-page"><button type="button" id="back-group-info">← ${local('返回小组','返回小組','Back to group')}</button><div class="group-info-heading"><span class="state-pill">${local('小组基本信息','小組基本資訊','Group information')}</span><h2 data-user-content>${esc(group.name)}</h2><p>${esc(local('创建于','建立於','Created'))} ${esc(fmt(group.created))}</p></div>${group.role==='owner'?`<form id="edit-group-info" class="group-info-editor"><label>${local('小组名称','小組名稱','Group name')}<input name="name" required maxlength="80" value="${esc(group.name)}"></label><label>${local('小组描述','小組描述','Description')}<textarea name="description" rows="3" maxlength="1000">${esc(group.description||'')}</textarea></label><p class="error" id="group-info-error" role="alert"></p><button type="submit" class="primary">${local('保存修改','儲存修改','Save changes')}</button></form>`:`<p class="group-description" data-user-content>${esc(group.description||local('暂无小组描述','暫無小組描述','No description yet'))}</p>`}<div class="group-info-stats"><div><strong>${members.length}</strong><span>${local('成员','成員','Members')}</span></div><div><strong>${tasks.filter(t=>!t.completed).length}</strong><span>${local('进行中任务','進行中任務','Open tasks')}</span></div></div><div class="group-info-members">${members.map(member=>`<button type="button" class="group-info-member" data-avatar-member="${esc(member.user_id)}">${memberAvatar(member)}<span><strong data-user-content>${esc(member.nickname||local('用户 ','用戶 ','User ')+member.user_id.slice(-4))}</strong><small>${member.role==='owner'?local('组长','組長','Owner'):local('成员','成員','Member')} · ${local('加入于','加入於','Joined')} ${esc(fmt(member.joined))}</small></span></button>`).join('')}</div></section>`;
  $('#back-group-info').onclick=renderGroups;
- const editor=$('#edit-group-info');if(editor)editor.onsubmit=async event=>{event.preventDefault();const button=editor.querySelector('[type=submit]');button.disabled=true;try{await api(`groups/${group.id}`,{method:'PATCH',body:{name:editor.elements.name.value,description:editor.elements.description.value}});await loadGroups(true);openGroupInfo();toast(local('小组信息已保存','小組資訊已儲存','Group information saved'));}catch(error){$('#group-info-error').textContent=error.message;}finally{button.disabled=false;}};
+ const editor=$('#edit-group-info');if(editor)editor.onsubmit=async event=>{event.preventDefault();const button=editor.querySelector('[type=submit]');button.disabled=true;try{await api(`groups/${group.id}`,{method:'PATCH',body:{name:editor.elements.name.value,description:editor.elements.description.value}});await loadGroups(true);$('#open-group-info')?.focus();toast(local('小组信息已保存','小組資訊已儲存','Group information saved'));}catch(error){editor.querySelector('#group-info-error').textContent=error.message;}finally{button.disabled=false;}};
 
  root.querySelectorAll('[data-avatar-member]').forEach(button=>button.onclick=()=>{
    const member=members.find(item=>item.user_id===button.dataset.avatarMember),dialog=document.createElement('dialog');
@@ -837,23 +846,127 @@ function renderGroups(){
   if(!groups.length){root.innerHTML='<div class="empty"><span class="empty-mark">◎</span><h2>从一个真实的小组项目开始</h2><p>创建小组后，可以确认每个人的分工，并收集共同空闲时间。</p></div>';translateTextNodes();return;}
   if(!groupState){root.innerHTML=`<div class="groups-layout">${groupIndex()}<div class="workspace-placeholder"><p>选择一个小组，查看分工与会议时间。</p></div></div>`;bindGroupIndex();translateTextNodes();return;}
   const {group,members,candidates,tasks,meetingPolls,announcements}=groupState,isOwner=group.role==='owner';
-  root.innerHTML=`<div class="groups-layout">${groupIndex()}<div class="group-panel"><div class="group-panel-head"><div><h2 data-user-content>${esc(group.name)}</h2><p>${members.length} ${local('位成员','位成員','members')} · ${esc(accountLabel(status.account))} · ${isOwner?local('组长','組長','Owner'):local('成员','成員','Member')}</p></div><button type="button" id="open-group-info">${local('小组信息','小組資訊','Group info')} ↗</button></div>${announcements?.length?`<section class="group-section announcements"><div class="section-heading"><h2>小组公告</h2></div>${announcements.map(item=>`<article class="announcement"><strong>${esc(announcementText(item).title)}</strong><p>${esc(announcementText(item).body)}</p></article>`).join('')}</section>`:''}<section class="group-section"><div class="section-heading"><h2>成员</h2></div><div class="member-list">${members.map(member=>{const selectable=isOwner&&member.user_id!==status.account.id,tag=selectable?'button':'span';return `<${tag} class="member-chip ${member.user_id===status.account.id?'current':''}" ${selectable?`type="button" data-select-member="${esc(member.user_id)}" aria-pressed="false"`:''}>${memberAvatar(member)}<b>${esc(member.nickname||local('用户 ','用戶 ','User ')+member.user_id.slice(-4))}</b>${esc(member.role==='owner'?local('创建者','建立者','Owner'):local('成员','成員','Member'))}${member.user_id===status.account.id?local(' · 当前账号',' · 目前帳號',' · You'):''}</${tag}>`;}).join('')}</div>${membershipControls(isOwner)}${isOwner?`<form id="member-form" class="compact-form"><label>用注册邮箱邀请成员<input name="email" type="email" required></label><button type="submit">邀请成员</button></form>`:''}</section>${projectBoard(isOwner)}<section class="group-section"><div class="section-heading"><h2>共同会议时间</h2></div><form id="meeting-form" class="meeting-form"><label>会议名称<input name="name" maxlength="120" required></label><div class="form-row"><label>可选范围开始<input name="rangeStart" type="datetime-local" required></label><label>可选范围结束<input name="rangeEnd" type="datetime-local" required></label></div><div class="form-row"><label>会议时长<select name="duration"><option value="30">30 分钟</option><option value="45">45 分钟</option><option value="60" selected>60 分钟</option><option value="90">90 分钟</option></select></label><label>前后缓冲<select name="buffer"><option value="0">不需要</option><option value="15" selected>15 分钟</option><option value="30">30 分钟</option></select></label></div><div class="form-actions"><button class="primary" type="submit">发起时间收集</button></div></form>${meetingPolls.length?meetingPolls.map(poll=>`<article class="poll-card"><span class="state-pill ${esc(poll.phase||poll.status)}">${esc(stateLabel(poll.phase||poll.status))}</span><h3 data-user-content>${esc(poll.name)}</h3><p>${esc(fmt(poll.range_start))} – ${esc(fmt(poll.range_end))} · ${poll.duration_minutes} ${local('分钟','分鐘','minutes')}</p><button type="button" data-open-poll="${esc(poll.id)}">${poll.status==='confirmed'?'查看结果':poll.phase==='voting'?'参与投票':'提交时间 / 查看推荐'}</button></article>`).join(''):'<p class="form-help">还没有会议时间收集。</p>'}${pollWorkspace()}${meetingControls()}</section></div></div>`;
+  root.innerHTML=`<div class="groups-layout">${groupIndex()}<div class="group-panel"><div class="group-panel-head"><div><h2 data-user-content>${esc(group.name)}</h2><p>${members.length} ${local('位成员','位成員','members')} · ${esc(accountLabel(status.account))} · ${isOwner?local('组长','組長','Owner'):local('成员','成員','Member')}</p></div><button type="button" id="open-group-info">${isOwner?local('编辑小组','編輯小組','Edit group'):local('小组信息','小組資訊','Group info')}</button></div>${projectBoard(isOwner)}${announcements?.length?`<section class="group-section announcements"><div class="section-heading"><h2>小组公告</h2></div>${announcements.map(item=>`<article class="announcement"><strong>${esc(announcementText(item).title)}</strong><p>${esc(announcementText(item).body)}</p></article>`).join('')}</section>`:''}<section class="group-section"><div class="section-heading"><h2>成员</h2></div><div class="member-list">${members.map(member=>{const selectable=isOwner&&member.user_id!==status.account.id,tag=selectable?'button':'span';return `<${tag} class="member-chip ${member.user_id===status.account.id?'current':''}" ${selectable?`type="button" data-select-member="${esc(member.user_id)}" aria-pressed="false"`:''}>${memberAvatar(member)}<b>${esc(member.nickname||local('用户 ','用戶 ','User ')+member.user_id.slice(-4))}</b>${esc(member.role==='owner'?local('创建者','建立者','Owner'):local('成员','成員','Member'))}${member.user_id===status.account.id?local(' · 当前账号',' · 目前帳號',' · You'):''}</${tag}>`;}).join('')}</div>${membershipControls(isOwner)}${isOwner?`<form id="member-form" class="compact-form"><label>用注册邮箱邀请成员<input name="email" type="email" required></label><button type="submit">邀请成员</button></form>`:''}</section><section class="group-section"><div class="section-heading"><h2>共同会议时间</h2></div><form id="meeting-form" class="meeting-form"><label>会议名称<input name="name" maxlength="120" required></label><div class="form-row"><label>可选范围开始<input name="rangeStart" type="datetime-local" required></label><label>可选范围结束<input name="rangeEnd" type="datetime-local" required></label></div><div class="form-row"><label>会议时长<select name="duration"><option value="30">30 分钟</option><option value="45">45 分钟</option><option value="60" selected>60 分钟</option><option value="90">90 分钟</option></select></label><label>前后缓冲<select name="buffer"><option value="0">不需要</option><option value="15" selected>15 分钟</option><option value="30">30 分钟</option></select></label></div><div class="form-actions"><button class="primary" type="submit">发起时间收集</button></div></form>${meetingPolls.length?meetingPolls.map(poll=>`<article class="poll-card"><span class="state-pill ${esc(poll.phase||poll.status)}">${esc(stateLabel(poll.phase||poll.status))}</span><h3 data-user-content>${esc(poll.name)}</h3><p>${esc(fmt(poll.range_start))} – ${esc(fmt(poll.range_end))} · ${poll.duration_minutes} ${local('分钟','分鐘','minutes')}</p><button type="button" data-open-poll="${esc(poll.id)}">${poll.status==='confirmed'?'查看结果':poll.phase==='voting'?'参与投票':'提交时间 / 查看推荐'}</button></article>`).join(''):'<p class="form-help">还没有会议时间收集。</p>'}${pollWorkspace()}${meetingControls()}</section></div></div>`;
   bindGroupActions();
   translateTextNodes();
   bindUpgradeControls();
 }
 
 function projectBoard(owner){
- const projects=groupState.projects||[],candidates=groupState.candidates||[],tasks=groupState.tasks||[];
- const form=(project)=>`<form class="candidate-form" data-project-form="${project||''}"><label>${project?local('子任务','子任務','Subtask'):local('总任务','總任務','Project')}<input name="title" required maxlength="200"></label><label>${local('任务说明','任務說明','Details')}<textarea name="notes" rows="2"></textarea></label>${project?`<div class="form-row"><label>${local('邀请负责人','邀請負責人','Invite assignee')}<select name="assignee"><option value="">${local('开放申请','開放申請','Open for applications')}</option>${memberOptions()}</select></label><label>${local('截止时间','截止時間','Deadline')}<input type="datetime-local" name="due"></label></div>`:''}<div class="form-actions"><button class="primary">${project?local('创建子任务','建立子任務','Create subtask'):local('创建总任务','建立總任務','Create project')}</button></div></form>`;
- const item=c=>{const task=tasks.find(t=>t.candidate_id===c.id);if(task)return taskCard(task);
- const applications=(groupState.applications||[]).filter(a=>a.candidate_id===c.id&&a.status==='pending');
- return `<article class="candidate-card"><h3>${esc(c.title)}</h3><p>${esc(c.notes||'')}</p>${c.due?`<p>${esc(fmt(c.due))}</p>`:''}${c.status==='pending'?(owner?`${applications.map(a=>`<div class="inline-actions"><span>${esc(memberName(a.user_id))}</span><button data-approve-application="${esc(c.id)}" data-user-id="${esc(a.user_id)}">${local('批准申请','批准申請','Approve application')}</button></div>`).join('')}<details><summary>${local('指定负责人','指定負責人','Choose assignee')}</summary>${candidateCard(c,true)}</details>`:`<button data-apply-task="${esc(c.id)}">${local('申请接手','申請接手','Apply for task')}</button>`):`<span>${esc(stateLabel(c.status))}</span>`}</article>`;};
- return `<section class="group-section"><div class="section-heading"><h2>${local('项目与分工','專案與分工','Projects & assignments')}</h2></div>${owner?`<details><summary>${local('创建总任务','建立總任務','Create project')}</summary>${form('')}</details>`:''}${projects.map(project=>`<section class="group-section"><h3>${esc(project.title)}</h3>${project.notes?`<p>${esc(project.notes)}</p>`:''}${candidates.filter(c=>c.project_id===project.id).map(item).join('')}${owner?`<details><summary>${local('添加子任务','新增子任務','Add subtask')}</summary>${form(esc(project.id))}</details>`:''}</section>`).join('')}${candidates.filter(c=>!c.project_id).map(item).join('')}${tasks.filter(t=>!t.candidate_id).map(taskCard).join('')}</section>`;
+ const {projects=[],candidates=[],tasks=[],applications=[]}=groupState;
+ const assigned=new Map(tasks.filter(task=>task.candidate_id).map(task=>[task.candidate_id,task]));
+ const item=candidate=>{
+  const task=assigned.get(candidate.id);
+  if(task)return taskCard(task,owner);
+  const open=candidate.status==='pending';
+  const available=open&&candidate.project_id&&!candidate.proposed_assignee_id;
+  const waiting=applications.filter(application=>application.candidate_id===candidate.id&&application.status==='pending');
+  const applied=waiting.some(application=>application.user_id===status.account.id);
+  const label=available?local('开放认领','開放認領','Open to claim'):open?local('待分配','待分配','Unassigned'):stateLabel(candidate.status);
+  return `<article class="candidate-card group-work-item">
+   <header class="group-work-head"><div class="task-heading"><h4 data-user-content>${esc(candidate.title)}</h4><span class="state-pill ${esc(candidate.status)}">${esc(label)}</span></div>
+    ${owner&&open?workEditButton('candidates',candidate.id,'task'):''}</header>
+   <p class="group-work-meta">${candidate.proposed_assignee_id?`<span data-user-content>${esc(memberName(candidate.proposed_assignee_id))}</span>`:''}
+    <span>${candidate.due?esc(fmt(candidate.due)):local('无截止时间','無截止時間','No deadline')}</span></p>
+   ${candidate.notes?`<p class="group-work-notes" data-user-content>${esc(candidate.notes)}</p>`:''}
+   ${owner&&open?`<div class="group-work-review">${waiting.map(application=>`<div class="inline-actions"><span data-user-content>${esc(memberName(application.user_id))}</span><button type="button" data-approve-application="${esc(candidate.id)}" data-user-id="${esc(application.user_id)}">${local('批准申请','批准申請','Approve application')}</button></div>`).join('')}<details><summary>${local('分配负责人','分配負責人','Assign to a member')}</summary>${candidateCard(candidate,true)}</details></div>`
+     :available?`<div class="inline-actions">${applied?`<span class="state-pill">${local('已申请','已申請','Applied')}</span>`:`<button type="button" data-apply-task="${esc(candidate.id)}">${local('申请接手','申請接手','Apply for task')}</button>`}</div>`:''}
+  </article>`;
+ };
+ const standalone=[...candidates.filter(candidate=>!candidate.project_id).map(item),
+  ...tasks.filter(task=>!task.candidate_id||!candidates.some(candidate=>candidate.id===task.candidate_id)).map(task=>taskCard(task,owner))];
+ const projectCards=projects.map(project=>{
+  const children=candidates.filter(candidate=>candidate.project_id===project.id);
+  const active=children.filter(candidate=>candidate.status!=='rejected');
+  const completed=active.filter(candidate=>assigned.get(candidate.id)?.completed).length;
+  return `<article class="group-project">
+   <header class="group-project-head">
+    <div><h3 data-user-content>${esc(project.title)}</h3>
+     ${active.length?`<p class="group-project-progress">${local(`已完成 ${completed} / ${active.length} 项`,`已完成 ${completed} / ${active.length} 項`,`${completed} of ${active.length} complete`)}</p>`:''}</div>
+    <div class="group-work-actions">${owner?workEditButton('projects',project.id,'project')+`<button type="button" data-add-group-task="${esc(project.id)}">＋ ${local('添加子任务','新增子任務','Add subtask')}</button>`:''}</div>
+   </header>
+   ${project.notes?`<p class="group-work-notes" data-user-content>${esc(project.notes)}</p>`:''}
+   ${children.length?`<div class="group-work-list">${children.map(item).join('')}</div>`:`<p class="group-work-empty">${local('暂无子任务','暫無子任務','No subtasks yet')}</p>`}
+  </article>`;
+ });
+ return `<section class="group-section group-project-board">
+  <div class="section-heading"><h2>${local('项目与分工','專案與分工','Projects & assignments')}</h2>
+   ${owner?`<button type="button" class="primary" data-add-group-project>＋ ${local('新建项目','新增專案','New project')}</button>`:''}</div>
+  <div class="group-project-list">${projectCards.join('')}
+   ${standalone.length?`<article class="group-project"><h3>${local('其他小组任务','其他小組任務','Other group tasks')}</h3><div class="group-work-list">${standalone.join('')}</div></article>`:''}
+   ${!projects.length&&!standalone.length?`<p class="group-work-empty">${local('暂无项目或小组任务','暫無專案或小組任務','No projects or group tasks yet')}</p>`:''}
+  </div>
+ </section>`;
 }
+
+function workEditButton(kind,id,label){
+ const text=label==='project'?local('编辑项目','編輯專案','Edit project'):local('编辑任务','編輯任務','Edit task');
+ return `<button type="button" data-edit-group-work="${kind}" data-work-id="${esc(id)}">${text}</button>`;
+}
+
+function openGroupWorkEditor({kind,record,projectId}){
+ const groupId=groupState.group.id,project=kind==='projects';
+ const heading=record
+  ?project?local('编辑项目','編輯專案','Edit project'):local('编辑任务','編輯任務','Edit task')
+  :project?local('新建项目','新增專案','New project'):local('添加子任务','新增子任務','Add subtask');
+ const dialog=document.createElement('dialog');
+ dialog.className='group-work-editor';
+ dialog.setAttribute('aria-labelledby','group-work-editor-heading');
+ dialog.innerHTML=`<form>
+  <h2 id="group-work-editor-heading">${heading}</h2>
+  <label>${project?local('项目名称','專案名稱','Project name'):tx('taskTitle')}
+   <input name="title" required maxlength="200" value="${esc(record?.title||'')}" autofocus></label>
+  <label>${local('详情','詳情','Details')}<textarea name="notes" rows="4" maxlength="5000">${esc(record?.notes||'')}</textarea></label>
+  ${project?'':`<label>${local('截止时间（香港，可留空）','截止時間（香港，可留空）','Deadline (Hong Kong, optional)')}
+   <input type="datetime-local" name="due" value="${hkValue(record?.due)}"></label>`}
+  ${!project&&!record?`<label>${local('负责人','負責人','Assignee')}<select name="assignee">
+   <option value="">${local('开放认领','開放認領','Open to claim')}</option>${memberOptions()}</select></label>`:''}
+  <p class="error group-work-error" role="alert" data-user-content></p>
+  <div class="group-work-actions"><button type="button" data-cancel-work>${local('取消','取消','Cancel')}</button>
+   <button type="submit" class="primary">${record?local('保存修改','儲存修改','Save changes'):project?heading:local('发布子任务','發佈子任務','Publish subtask')}</button></div>
+ </form>`;
+ const form=dialog.querySelector('form'),cancel=form.querySelector('[data-cancel-work]');
+ const save=form.querySelector('[type=submit]'),errorLine=form.querySelector('.group-work-error');
+ cancel.onclick=()=>dialog.close();
+ dialog.addEventListener('close',()=>dialog.remove());
+ dialog.addEventListener('cancel',event=>{if(save.disabled)event.preventDefault();});
+ form.onsubmit=async event=>{
+  event.preventDefault();
+  save.disabled=cancel.disabled=true;
+  errorLine.textContent='';
+  const fields=form.elements;
+  const due=fields.due?.value;
+  const body={title:fields.title.value,notes:fields.notes.value};
+  if(!project)body.due=record&&due===hkValue(record.due)?record.due:hkTime(due);
+  if(record&&kind==='tasks')body.version=record.version;
+  if(record&&kind==='candidates')body.updated=record.updated;
+  if(!record&&projectId)Object.assign(body,{projectId,proposedAssigneeId:fields.assignee.value||null});
+  try{
+   const path=record?`groups/${groupId}/${kind}/${record.id}`:`groups/${groupId}/projects`;
+   await api(path,{method:record?'PATCH':'POST',body});
+  }catch(error){
+   errorLine.textContent=error.message;
+   save.disabled=cancel.disabled=false;
+   return;
+  }
+  dialog.close();
+  toast(record?local('已保存修改','已儲存修改','Changes saved'):local('已发布','已發佈','Published'));
+  await loadGroups(true);
+  await loadTasks();
+ };
+ document.body.append(dialog);
+ dialog.showModal();
+}
+
 function groupFailure(message){const dialog=document.createElement('dialog');dialog.innerHTML=`<h2>${local('无法申请','無法申請','Unable to apply')}</h2><p>${esc(message)}</p><button>${local('知道了','知道了','OK')}</button>`;document.body.append(dialog);dialog.querySelector('button').onclick=()=>dialog.close();dialog.onclose=()=>dialog.remove();dialog.showModal();}
 function bindProjects(){
- $$('[data-project-form]').forEach(form=>form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button');button.disabled=true;try{await api(`groups/${selectedGroupId}/projects`,{method:'POST',body:{projectId:form.dataset.projectForm||null,title:form.elements.title.value,notes:form.elements.notes.value,proposedAssigneeId:form.elements.assignee?.value||null,due:hkTime(form.elements.due?.value||'')}});await loadGroups(true);}catch(error){toast(error.message);}finally{button.disabled=false;}});
+ const board=$('.group-project-board');
+ board.querySelector('[data-add-group-project]')?.addEventListener('click',()=>openGroupWorkEditor({kind:'projects'}));
+ board.querySelectorAll('[data-add-group-task]').forEach(button=>button.onclick=()=>openGroupWorkEditor({kind:'candidates',projectId:button.dataset.addGroupTask}));
+ board.querySelectorAll('[data-edit-group-work]').forEach(button=>button.onclick=()=>{
+  const kind=button.dataset.editGroupWork,record=groupState[kind].find(item=>item.id===button.dataset.workId);
+  if(record)openGroupWorkEditor({kind,record});
+ });
  $$('[data-apply-task]').forEach(button=>button.onclick=async()=>{button.disabled=true;try{await api(`task-candidates/${button.dataset.applyTask}/apply`,{method:'POST',body:{}});toast(local('申请已发送','申請已傳送','Application sent'));await loadGroups(true);}catch(error){groupFailure(error.message);}finally{button.disabled=false;}});
  $$('[data-approve-application]').forEach(button=>button.onclick=()=>runAction(button,()=>api(`task-candidates/${button.dataset.approveApplication}/review`,{method:'POST',body:{decision:'confirm',changes:{proposedAssigneeId:button.dataset.userId}}}),()=>loadGroups(true)));
 }
@@ -865,8 +978,8 @@ function bindGroupActions(){
   $$('.group-panel select[name=assignee]').forEach(select=>{
     const picker=document.createElement('details');picker.className='assignee-picker';
     const summary=document.createElement('summary');const menu=document.createElement('div');menu.className='assignee-menu';
-    let hasSelected=false;const show=()=>{const member=groupState.members.find(m=>m.user_id===select.value);summary.innerHTML=member?memberAvatar(member)+`<span>${esc(member.nickname||local('用户 ','用戶 ','User ')+member.user_id.slice(-4))}</span>`:(hasSelected?esc(select.selectedOptions[0]?.textContent||''):'<span></span>');summary.insertAdjacentHTML('beforeend','<span class="assignee-chevron" aria-hidden="true">⌄</span>');};
-    [...select.options].forEach(option=>{const member=groupState.members.find(m=>m.user_id===option.value),button=document.createElement('button');button.type='button';button.innerHTML=(member?memberAvatar(member):'')+`<span>${esc(option.textContent)}</span>`;button.onclick=()=>{select.value=option.value;hasSelected=true;show();picker.open=false;summary.focus();};menu.append(button);});
+    const show=()=>{const member=groupState.members.find(m=>m.user_id===select.value);summary.innerHTML=member?memberAvatar(member)+`<span>${esc(member.nickname||local('用户 ','用戶 ','User ')+member.user_id.slice(-4))}</span>`:esc(select.selectedOptions[0]?.textContent||'');summary.insertAdjacentHTML('beforeend','<span class="assignee-chevron" aria-hidden="true">⌄</span>');};
+    [...select.options].forEach(option=>{const member=groupState.members.find(m=>m.user_id===option.value),button=document.createElement('button');button.type='button';button.innerHTML=(member?memberAvatar(member):'')+`<span>${esc(option.textContent)}</span>`;button.onclick=()=>{select.value=option.value;show();picker.open=false;summary.focus();};menu.append(button);});
     select.hidden=true;select.after(picker);picker.append(summary,menu);show();picker.addEventListener('keydown',event=>{if(event.key==='Escape'){picker.open=false;summary.focus();}});
   });
   const memberSelect=$('#member-target');
@@ -880,7 +993,10 @@ function bindGroupActions(){
     [...memberSelect.options].forEach(option=>{const member=groupState.members.find(item=>item.user_id===option.value),choice=document.createElement('button');choice.type='button';choice.innerHTML=(member?memberAvatar(member):'')+`<span>${esc(option.textContent)}</span>`;choice.onclick=()=>{selectMember(option.value);summary.focus();};menu.append(choice);});
     memberSelect.hidden=true;memberSelect.after(picker);picker.append(summary,menu);show();picker.addEventListener('keydown',event=>{if(event.key==='Escape'){picker.open=false;summary.focus();}});
   }
-  if($('#open-group-info'))$('#open-group-info').onclick=openGroupInfo;
+  $('#open-group-info').onclick=()=>{
+    openGroupInfo();
+    $('#edit-group-info input[name=name]')?.focus();
+  };
   const memberForm=$('#member-form');if(memberForm)memberForm.onsubmit=async event=>{event.preventDefault();const button=memberForm.querySelector('[type=submit]');button.disabled=true;try{await api(`groups/${selectedGroupId}/members`,{method:'POST',body:{email:memberForm.elements.email.value}});toast(local('邀请已发送，等待对方接受','邀請已發送，等待對方接受','Invitation sent; waiting for acceptance'));await loadGroups(true);}catch(error){toast(error.message);}finally{button.disabled=false;}};
   bindProjects();
   $$('[data-review-candidate]').forEach(form=>form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('[type=submit]');button.disabled=true;try{await api(`task-candidates/${form.dataset.reviewCandidate}/review`,{method:'POST',body:{decision:'confirm',changes:{title:form.elements.title.value,notes:form.elements.notes.value,due:hkTime(form.elements.due.value),proposedAssigneeId:form.elements.assignee.value,evidence:{source:form.elements.evidence.value}}}});toast('分工已发送，等待负责人接受');await loadGroups(true);await loadTasks();}catch(error){toast(error.message);}finally{button.disabled=false;}});

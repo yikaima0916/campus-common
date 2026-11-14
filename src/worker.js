@@ -12,7 +12,7 @@ import { getKV,setKV,startOAuth,finishOAuth,syncMail,reprocessMail,ingestForward
 import { applyNameAliases,applyPreferredNameToFields } from './names.js';
 import { normalizeDigestRecord,shapeDigestItem,shapeDigestRecord } from './digest-format.js';
 import { scheduleTask,repeatTasks,deliver,makeDigest,enqueue } from './jobs.js';
-import { projectAction,applyForTask,updateGroup,listInvitations,respondInvitation,manageMember,addGroupMember,createGroup,createTaskCandidate,groupSnapshot,listGroups,respondToAssignment,reviewTaskCandidate } from './collaboration.js';
+import { projectAction,applyForTask,updateGroup,editGroupWork,listInvitations,respondInvitation,manageMember,addGroupMember,createGroup,createTaskCandidate,groupSnapshot,listGroups,respondToAssignment,reviewTaskCandidate } from './collaboration.js';
 import { changeMeeting,confirmMeetingProposal,createMeetingPoll,meetingPollSnapshot,openMeetingVote,submitAvailability,voteMeetingProposal } from './meetings.js';
 const json=(data,status=200)=>Response.json(data,{status});
 async function body(request){if(Number(request.headers.get('content-length'))>7*1024*1024)throw new Error('请求过大');const text=await request.text();if(text.length>7*1024*1024)throw new Error('请求过大');return JSON.parse(text);}
@@ -160,6 +160,8 @@ async function routes(request,env,ctx){
   const suggestionId=path.match(/^\/api\/mail-suggestions\/([\w-]+)$/)?.[1];
   if(suggestionId&&method==='POST')return json(await reviewMailSuggestion(env,account.user_id,suggestionId,await body(request)));
 
+  const groupWork=path.match(/^\/api\/groups\/([\w-]+)\/(projects|candidates|tasks)\/([\w-]+)$/);
+  if(groupWork&&method==='PATCH')return json(await editGroupWork(env,account.user_id,groupWork[1],groupWork[2],groupWork[3],await body(request)));
   const projectGroup=path.match(/^\/api\/groups\/([\w-]+)\/projects$/)?.[1];
   if(projectGroup&&method==='POST')return json(await projectAction(env,account.user_id,projectGroup,await body(request)),201);
   const applyCandidate=path.match(/^\/api\/task-candidates\/([\w-]+)\/apply$/)?.[1];
@@ -268,7 +270,7 @@ async function routes(request,env,ctx){
     const wantZh=locale.startsWith('zh')&&prefs.translateZh!==false;
     const localizedRows=await localizeMessages(env,account.user_id,locale,[row],{allowAi:env.ENABLE_AI==='true',translate:wantZh||locale==='en',nameAliases:aliasRules});
     const localized=locale==='en'?(localizedRows[0]||row):applyPreferredNameToFields(localizedRows[0]||row,aliasRules);
-    const briefPromise=generateBrief(env,account.user_id,locale,id,fetched);
+    const brief=await generateBrief(env,account.user_id,locale,id,fetched);
     let fullTranslation=null,translationStatus='disabled';
     if(wantZh){
       if(!fetched.originalAvailable)translationStatus='source-unavailable';
@@ -289,7 +291,7 @@ async function routes(request,env,ctx){
       quality:localized.quality||row.quality,
       chinese:wantZh?{subject:localized.subject,sender:localized.sender,origin:localized.origin,summary:localized.summary,action:localized.action,fullBody:applyNameAliases(fullTranslation,aliasRules)}:null,
       english:{subject:englishSubject,body:englishBody,available:fetched.originalAvailable,html:fetched.englishHtml,images:fetched.images,recipients:recipients||[],summary:prefs.englishSummary&&locale.startsWith('zh')?String(row.summary||''):undefined},
-      display:{...localized,brief:await briefPromise},
+      display:{...localized,brief},
       translationEnabled:wantZh,
       translationStatus,
       englishSummaryEnabled:prefs.englishSummary===true&&locale.startsWith('zh')
