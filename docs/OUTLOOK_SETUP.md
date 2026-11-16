@@ -4,7 +4,7 @@ Campus Common connects a personal Outlook or Hotmail mailbox using delegated Mic
 
 ## 1. Register the Microsoft application
 
-1. In the [Microsoft Entra admin center](https://entra.microsoft.com/), open **App registrations**. Use the app dedicated to Campus Common i4i, or register a new one named **Campus Common**.
+1. In the [Microsoft Entra admin center](https://entra.microsoft.com/), open **App registrations**. Use the app dedicated to Campus Common, or register a new one named **Campus Common**.
 2. Select an account type that supports personal Microsoft accounts. The connector uses the `consumers` authorisation endpoint.
 3. Under **Authentication**, add this exact redirect URI using the **Web** platform:
 
