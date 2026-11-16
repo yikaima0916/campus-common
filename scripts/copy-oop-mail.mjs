@@ -44,9 +44,9 @@ function read(database, statement) {
 }
 
 function account(database, email) {
-  const [user] = read(database, 'SELECT id FROM users WHERE lower(email)=lower(' + sql(email) + ')');
+  const [user] = read(database, 'SELECT id,preferred_zh_name FROM users WHERE lower(email)=lower(' + sql(email) + ')');
   if (!user) throw new Error('No matching website login email in ' + database);
-  return user.id;
+  return user;
 }
 
 function digest(id) {
@@ -54,8 +54,8 @@ function digest(id) {
 }
 
 function copyMail() {
-  const sender = account(sourceDb, sourceEmail);
-  const recipient = account(targetDb, targetEmail);
+  const { id: sender } = account(sourceDb, sourceEmail);
+  const { id: recipient, preferred_zh_name: preferredName } = account(targetDb, targetEmail);
   const columns = ['id', 'subject', 'received', 'sender', 'origin', 'category', 'summary', 'action', 'url', 'quality'];
   const source = read(sourceDb, 'SELECT ' + columns.join(',') + ' FROM messages WHERE user_id=' +
     sql(sender) + ' AND category<5 ORDER BY received DESC,id LIMIT 10');
@@ -74,6 +74,21 @@ function copyMail() {
     }
   }
 
+  // Copy only caches the current reader can address. Chunk keys include both
+  // the exact source-text hash and the destination's preferred Chinese name.
+  const translationLocales = ['zh-TW', 'zh-CN'];
+  const nameHash = digest(preferredName || '');
+  const originals = source.map(row => 'mail-original:v1:' + sender + ':' + digest(row.id));
+  const translationPrefixes = source.flatMap(row => translationLocales.map(locale =>
+    ['fulltrans', 'v7', locale, sender, digest(row.id), nameHash, ''].join(':')));
+  const cached = read(sourceDb, 'SELECT key,value FROM kv WHERE key IN (' +
+    originals.map(sql).join(',') + ') OR ' +
+    translationPrefixes.map(prefix =>
+      'substr(key,1,' + prefix.length + ')=' + sql(prefix)).join(' OR '));
+  const cache = new Map(cached.map(entry => [entry.key, entry.value]));
+  const insertCache = (key, value) => 'INSERT INTO kv (key,value) VALUES (' +
+    sql(key) + ',' + sql(value) + ') ON CONFLICT(key) DO NOTHING;';
+
   const match = source.map(row => '(id=' + sql(row.id) + ' OR (subject=' +
     sql(row.subject) + ' AND received=' + sql(row.received) + '))').join(' OR ');
   const existing = read(targetDb, 'SELECT id,subject,received FROM messages WHERE user_id=' +
@@ -81,6 +96,8 @@ function copyMail() {
   const statements = [];
   let inserts = 0;
   let traditional = 0;
+  let topics = 0;
+  let translationChunks = 0;
   for (const row of source) {
     const exact = existing.find(candidate => candidate.id === row.id);
     const matched = existing.filter(candidate => candidate.subject === row.subject && candidate.received === row.received);
@@ -97,13 +114,36 @@ function copyMail() {
       const brief = keys.get(locale + ':' + digest(row.id));
       if (!brief) continue;
       const key = ['brief-v7', recipient, locale, digest(targetId)].join(':');
-      statements.push('INSERT INTO kv (key,value) VALUES (' + sql(key) + ',' + sql(brief) +
-        ') ON CONFLICT(key) DO NOTHING;');
-      if (locale === 'zh-TW') traditional++;
+      statements.push(insertCache(key, brief));
+      if (locale === 'zh-TW') {
+        traditional++;
+        if (String(JSON.parse(brief).topic || '').trim()) topics++;
+      }
+    }
+    const sourceHash = digest(row.id);
+    const targetHash = digest(targetId);
+    const original = cache.get('mail-original:v1:' + sender + ':' + sourceHash);
+    if (original) {
+      const parsed = JSON.parse(original);
+      if (parsed?.complete && parsed.body) {
+        statements.push(insertCache('mail-original:v1:' + recipient + ':' + targetHash, original));
+      }
+    }
+    for (const locale of translationLocales) {
+      const sourcePrefix = ['fulltrans', 'v7', locale, sender, sourceHash, nameHash, ''].join(':');
+      const targetPrefix = ['fulltrans', 'v7', locale, recipient, targetHash, nameHash, ''].join(':');
+      for (const [key, translation] of cache) {
+        if (!key.startsWith(sourcePrefix) || !translation) continue;
+        const chunkHash = key.slice(sourcePrefix.length);
+        if (!/^[A-Za-z0-9_-]{43}$/.test(chunkHash)) continue;
+        statements.push(insertCache(targetPrefix + chunkHash, translation));
+        translationChunks++;
+      }
     }
   }
   console.log('OOP messages: ' + source.length + ', new i4i rows: ' + inserts +
-    ', cached Traditional Chinese briefs found: ' + traditional + '.');
+    ', cached Traditional Chinese briefs found: ' + traditional +
+    ', with topics: ' + topics + ', compatible translation chunks: ' + translationChunks + '.');
   if (mode !== '--apply') {
     console.log('Preview only. Add --apply to copy these records. No AI calls.');
     return;
@@ -114,7 +154,7 @@ function copyMail() {
     const file = join(directory, 'copy.sql');
     writeFileSync(file, statements.join('\n'), { mode: 0o600 });
     execute(targetDb, ['--file', file, '--yes']);
-    console.log('Copy completed in i4i. Existing mail and summary records were preserved.');
+    console.log('Copy completed in i4i. Existing mail and caches were preserved.');
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
