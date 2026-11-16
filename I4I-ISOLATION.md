@@ -1,3 +1,3 @@
-# Campus Companion i4i
+# Campus Common deployment boundaries
 
-Separate competition project based on CDS commit 73cd9f2d97a347ee2f9aa2780ddd13f6dd824773. Its Worker and D1 database are isolated; no production records or credentials are copied. Use wrangler.i4i.jsonc. Email OAuth, AI, push credentials and scheduled jobs are disabled until independent services are configured.
+The hosted workspace uses its own Worker and D1 database. Keep application data and credentials scoped to their environment. The production configuration is `wrangler.i4i.jsonc`. Configure Outlook, Workers AI and push credentials for the intended environment, and verify scheduled triggers separately before relying on scheduled delivery.
