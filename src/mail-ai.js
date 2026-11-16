@@ -1,5 +1,6 @@
 const model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const cooldownKey = 'fulltrans:cooldown';
+const previewBudgetShare = 1 / 3;
 
 export async function mailAiStatus(env) {
   if (env.ENABLE_AI !== 'true' || !env.AI) return 'disabled';
@@ -16,17 +17,20 @@ export async function mailAiStatus(env) {
 
 // Reserve a conservative allowance before inference. The atomic update covers
 // concurrent requests and all accounts on this Worker. Cached reads cost zero.
-export async function runMailAi(env, feature, messages, maxTokens) {
+export async function runMailAi(env, feature, messages, maxTokens, {preview = false} = {}) {
   if (await mailAiStatus(env) !== 'ready') return null;
   const limit = Number(env.MAIL_AI_DAILY_NEURONS || 0);
   if (limit > 0) {
     const bytes = new TextEncoder().encode(JSON.stringify(messages)).length;
     const charge = Math.ceil((bytes + 256) * 0.026668 + maxTokens * 0.204805);
-    if (charge > limit) return null;
+    // Automatic previews share the same counter but cannot consume the portion
+    // reserved for explicitly opening an email or requesting a summary.
+    const ceiling = preview ? Math.floor(limit * previewBudgetShare) : limit;
+    if (charge > ceiling) return null;
     const day = new Date().toISOString().slice(0, 10);
     const reservation = await env.DB.prepare(
       'INSERT INTO kv(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+excluded.value WHERE CAST(value AS INTEGER)+excluded.value<=?'
-    ).bind('mail-ai-budget:' + day, charge, limit).run();
+    ).bind('mail-ai-budget:' + day, charge, ceiling).run();
     if (!reservation.meta.changes) return null;
   }
   try {
