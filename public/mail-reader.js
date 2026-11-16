@@ -16,11 +16,28 @@ export function renderMailBody({html,body,images={}},doc=document){
  const root=doc.createElement('div');root.className='original-mail-body';
  const inlineImages=new Map(Object.entries(images).map(([cid,src])=>[cid.replace(/^<|>$/g,'').toLowerCase(),src]));
  if(!html){
-   const text=compactPlainBody(body);let offset=0;
-   for(const match of text.matchAll(/\[(https:\/\/[^\]\s]+\.(?:png|jpe?g|gif|webp)(?:\?[^\]\s]*)?)\]/gi)){
-     root.append(doc.createTextNode(text.slice(offset,match.index)));const img=doc.createElement('img');img.src=safeMailUrl(match[1],true);img.alt='';img.loading='lazy';img.referrerPolicy='no-referrer';root.append(img);offset=match.index+match[0].length;
+   const text=compactPlainBody(body);
+   let offset=0;
+   for(const match of text.matchAll(/\[(https:\/\/[^\]\s]+\.(?:png|jpe?g|gif|webp)(?:\?[^\]\s]*)?)\]|https:\/\/[A-Za-z0-9._~:\/?#\[\]@!$&\x27()*+,;=%-]+/gi)){
+     root.append(doc.createTextNode(text.slice(offset,match.index)));
+     if(match[1]){
+       const img=doc.createElement('img');
+       img.src=safeMailUrl(match[1],true);img.alt='';img.loading='lazy';img.referrerPolicy='no-referrer';
+       root.append(img);
+     }else{
+       const url=match[0].replace(/[.,;!?，。；！？）]+$/u,'');
+       const href=safeMailUrl(url);
+       if(href){
+         const link=doc.createElement('a');
+         link.href=href;link.textContent=url;link.target='_blank';link.rel='noopener noreferrer';
+         root.append(link,doc.createTextNode(match[0].slice(url.length)));
+       }else root.append(doc.createTextNode(match[0]));
+     }
+     offset=match.index+match[0].length;
    }
-   root.append(doc.createTextNode(text.slice(offset)));root.classList.add('plain-mail');return root;
+   root.append(doc.createTextNode(text.slice(offset)));
+   root.classList.add('plain-mail');
+   return root;
  }
  const template=doc.createElement('template');template.innerHTML=html;
  const allowed=new Set('p div span br a img strong b em i u s ul ol li blockquote h1 h2 h3 h4 table tbody thead tr td th hr'.split(' '));

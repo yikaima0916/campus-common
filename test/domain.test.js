@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaults,assignmentReminders,validateTask,initialTimes,nextAllowed,allowed,digestWindow,originalSender,classify } from '../src/domain.js';
-import { explicitDeadline,plain,htmlToPlainText,stripForwardedHeader,translateFullBody } from '../src/mail.js';
+import { analyze,explicitDeadline,plain,htmlToPlainText,stripForwardedHeader,translateFullBody } from '../src/mail.js';
 test('deadline offsets respect Hong Kong quiet hours',()=>{
   const due=Date.parse('2026-10-05T09:00:00+08:00'),now=Date.parse('2026-10-01T00:00:00+08:00');
   const t=validateTask({title:'作业',due});const times=initialTimes(t,now);
@@ -71,8 +71,8 @@ test('full email translation strips forwarding headers and caches by substantive
   const second=await translateFullBody(env,'user','zh-CN','mail-1',fullBody,'马艺恺');
   const different=await translateFullBody(env,'user','zh-CN','mail-1','Different body','马艺恺');
   assert.equal(first,'译文1');assert.equal(second,first);assert.equal(different,'译文2');assert.equal(calls,2);
-  assert.match(systemPrompt,/omit that block/);assert.equal(translatedInput,'Actual message');
-  assert.ok([...values.keys()].some(key=>key.startsWith('fulltrans:v6:')));
+  assert.match(systemPrompt,/omit that block/i);assert.equal(translatedInput,'Actual message');
+  assert.ok([...values.keys()].some(key=>key.startsWith('fulltrans:v7:')));
 });
 test('translation quota exhaustion is reported once and suppresses repeat AI calls',async()=>{
   const values=new Map();let calls=0;
@@ -98,4 +98,44 @@ test('invalid schedules rejected; explicit reminders work without deadline',()=>
   assert.throws(()=>validateTask({title:'x',due:'bad'}));
   const at=Date.parse('2026-10-02T15:00:00+08:00');
   assert.deepEqual(initialTimes(validateTask({title:'x',reminders:{exact:[at]}}),at-1000),[at]);
+});
+
+test('task suggestions distinguish receipts, deadlines and requests', async()=>{
+  const mail=(subject)=>({subject});
+  const cases=[
+    ['Assignment submission confirmation - AI_interaction','Your work is recorded. The assignment was due before 22 November 2026 at 11:59 PM.',6,false,null],
+    ['ILP Registration Confirmed','Your registration was confirmed. Please attend the workshop.',6,false,null],
+    ['Assignment Successfully Completed','No further action is needed.',6,false,null],
+    ['Reminder to Complete Assignment 3','Please complete Assignment 3 this week.',2,true,null],
+    ['Assignment 3 deadline','Please submit Assignment 3 before 22 November 2026 at 11:59 PM HKT.',2,true,Date.parse('2026-11-22T23:59:00+08:00')],
+    ['Assignment submission confirmation','Submission failed. Please resubmit the assignment.',2,true,null],
+    ['ILP Registration Open','Please register by 22 November 2026 at 5:00 PM HKT.',4,false,null],
+    ['Assignment briefing','Please submit your questions. The briefing is at 22 November 2026 at 5:00 PM.',2,false,null]
+  ];
+  for(const [subject,body,category,assignment,due] of cases){
+    const result=await analyze({},mail(subject),body);
+    assert.deepEqual([result.category,result.assignment,result.due],[category,assignment,due],subject);
+  }
+});
+
+test('full translation keeps locale caches separate and rejects omissions',async()=>{
+  const cache=new Map();
+  const DB={prepare(){return {bind(key,value){return {
+    first:async()=>({value:cache.get(key)}),run:async()=>{cache.set(key,value);}
+  };}};}};
+  let calls=0;
+  const env={ENABLE_AI:'true',DB,AI:{run:async(_,request)=>{
+    calls++;
+    const traditional=request.messages[0].content.includes('Hong Kong');
+    return {response:traditional?'請於 22 日報名。\n• 資料：https://example.org/ilp':'请于 22 日报名。\n• 资料：https://example.org/ilp'};
+  }}};
+  const body='Register on the 22nd.\n• Details: https://example.org/ilp';
+  const tw=await translateFullBody(env,'user','zh-TW','fixture',body);
+  assert.match(tw,/請於 22 日報名/);
+  assert.equal(await translateFullBody(env,'user','zh-TW','fixture',body),tw);
+  assert.match(await translateFullBody(env,'user','zh-CN','fixture',body),/请于 22 日报名/);
+  assert.equal(calls,2);
+  assert.equal(await translateFullBody(env,'user','en','fixture',body),null);
+  env.AI.run=async()=>({response:'請報名。'});
+  assert.equal(await translateFullBody(env,'user','zh-TW','fixture-2',body),null);
 });

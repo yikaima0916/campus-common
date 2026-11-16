@@ -43,19 +43,36 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 | Register / login / data isolation | Yes | Verified 2026-11-10 via production API | Two temporary release accounts; cross-account task edit denied; accounts and sessions cleaned up |
 | Tasks, reminders UI | Yes | Task CRUD verified via production API; editor verified in local Safari | Actual push delivery remains unverified |
 | Groups (tasks, availability, meeting vote) | Yes | Reported earlier, not re-verified | |
-| Mail summary, rule-based fallback | Yes | Not verified | Used when AI is off |
-| Mail AI summary / extraction | Yes | **Off** | Needs `ENABLE_AI` = "true" **and** an `ai` binding; the binding is not in `wrangler.i4i.jsonc` |
+| Mail summary, rule-based fallback | Yes | Verified on candidate | Missing originals produce a labelled extract and no full translation. |
+| Mail AI summary and full zh-CN / zh-TW translation | Yes, repair branch | Live on campus-common | Real-model Traditional Chinese summary and translation verified with a synthetic ILP email. Fresh Simplified Chinese model output remains unverified. |
 | Outlook OAuth | Yes | Authorisation start verified | Production secrets configured. A signed-in test account reached Microsoft sign-in with the new app and correct Web callback. User consent, token exchange, and mail sync remain to be verified. |
 | iPhone Shortcut ingestion | Yes | Not configured | Needs `SHORTCUT_INGEST_KEY` |
 | Web Push | Yes | Unverified | Needs VAPID secrets |
 | Cron (reminders, digests) | `scheduled()` exists | **Off** | No cron trigger in `wrangler.i4i.jsonc` |
-| Daily Digest | Yes | Depends on cron | |
+| Daily Digest | Yes | Current-day digest verified in production | Scheduled delivery depends on cron. |
 | Campus Common public home / unified Study Workspace | Yes, main | Live 2026-11-10 | One workspace entry; grouped Academic / Campus Life sections on the homepage. All 35 static assets match the final release; future tiles remain Coming Soon |
 | Academic Planner, reviews, notes, Non-Academic Hub features | No | No | Future concept only; shown as Coming Soon tiles |
 
 ## 5. Latest change log (newest first)
 
 Use this format: Completed changes / Files modified / Commit SHA and branch / Deployed? (worker, URL) / Verification run vs not run / Known issues / Next steps.
+
+- **2026-11-16 — Reserve mail AI quota for opened messages.**
+  - The competition mailbox successfully synced again. Opening an existing email reached the live AI quota warning. Keep the existing daily cap. Background mail and digest previews now share at most one third of it, leaving the rest available for explicitly opened mail, including full translation.
+  - Files: `src/mail-ai.js`, `src/mail-briefs.js`, `src/worker.js`, `public/app.js`, `test/mail-ai-budget.test.js`. Branch: `fix/i4i-mail-ai-budget`. The SQLite quota regression check passed. Production deployment and post-reset verification are pending.
+
+- **2026-11-14 — Mail AI repair deployed and verified.**
+  - Code commit `2b083d3c4eb4c86b31a0275799073575bcebeb4a` on `fix/i4i-mail-ai`. Deployed Worker `campus-common` version `f2cd6d3b-a582-4ade-a7f7-fa64fecc658b` at 100% under deployment `3a47fa12-70e0-4cdb-bfc0-557984cc073f`. Prior version `11dffc5a-3b71-4238-9e12-a31e4e9c7d7a` is retained at 0% for rollback. Version bindings preserve isolated D1 `2ef415cd-56b9-4f37-9f75-b7f19cbdd968`, Outlook secrets, and Worker-first asset routing. CDS main remained `c0a99c8e876182a9305d7991e8a4f3c84dfad5f7` and its served app.js matched the pre-repair hash.
+  - All 105 local tests passed against the release source. All 35 static assets matched the candidate, with index.html served at /. Candidate ran a new real-model Traditional Chinese assignment brief in 10.36 seconds, with source evidence for 24 November 2026 at 11:59 PM HKT. Checked missing-original fallback, receipt exclusion, task and group reads, today's digest and cross-account 404. The earlier candidate produced and cached three translated chunks for the 3,034-character synthetic ILP message. The final candidate read the complete translation and exact original in 2.57 seconds, confirmed the linked deadline, venue, final paragraph and account name, and reused the cache.
+  - Production API checks passed for deployment, homepage, matching reader asset, signed-out 401 with no-store, cross-account 404, mail list and details, receipt exclusion, tasks, groups, digests and Outlook configuration. Production Chrome verified the Traditional Chinese AI summary and full translation, linked registration URL, English-original tab, refresh/cache persistence, and the 390 px layout without overflow. Captured the rollback-version and current-version views of the same synthetic email. API checks verified all three locale settings and persistence through logout/login. Three disposable accounts, eight synthetic messages and their scoped cache/session data were cleaned up.
+  - Remaining: uncached long-translation latency on the final version, fresh Simplified Chinese model output, physical iPhone/PWA behaviour, and OAuth/Graph retrieval against an authorised mailbox were not verified in this rollout. Candidate verification shared the 3,000 estimated-neuron daily app budget with earlier tests, leaving 197 estimated neurons, so further model runs were deferred. Account billing/usage could not be read. Existing Workers AI model only; no new service or plan. Scheduled digest delivery remains pending because cron is off.
+
+- **2026-11-14 — Restore i4i mail AI and Hong Kong Traditional Chinese.**
+  - Production version `11dffc5a-3b71-4238-9e12-a31e4e9c7d7a` was observed with `ENABLE_AI=false` and no AI binding. All 49 i4i message rows counted at diagnosis were marked as rule extracts. Read-only comparison confirmed that the CDS Worker had Workers AI enabled and an AI binding. The i4i D1 ID is `2ef415cd-56b9-4f37-9f75-b7f19cbdd968`; no CDS mailbox records or bindings were transferred.
+  - Repair source `2b083d3c4eb4c86b31a0275799073575bcebeb4a` on `fix/i4i-mail-ai`. Existing Workers AI model only. Email summary is generated from the original and checked against verbatim evidence. Full text and account/locale-scoped translation caches are separate. Translation validates links, numbers, addresses and line structure before showing any complete result. Both incoming and existing mail can be reviewed without a blanket backfill. Completion receipts cannot create new pending suggestions. The user's review step still applies.
+  - Local suite: **105/105**. Cloudflare candidate `8fae33f3-4510-4f74-9505-ac85b1f3d9d7` at 0%: true model generated an ILP summary and a three-part Traditional Chinese translation of a 3,034-character synthetic email. Verified the 22 November 17:00 HKT deadline, 25 November activity, room 308, link, final line, preferred name, cached re-open, and original text equality. The first uncached detail request did not yield usable JSON, although all three translation chunks were stored; the final source processes up to three chunks concurrently. The older candidate's initial refusal and unsupported institution reference led to tighter checks.
+  - Candidate checks: Mail detail and brief endpoint, missing-original fallback, receipt excluded from pending suggestions, read-only Tasks/Groups, today's digest, limited reprocess and cross-account 404. No paid plan or new service was enabled. App budget reserves at most 3,000 estimated neurons per UTC day. Detailed account billing/usage was inaccessible to the deployment credential.
+  - Remaining: verify final version upload and production traffic, uncached response timing, browser screenshots, locale switch and session persistence, physical phone layout, and OAuth/Graph retrieval against an authorised synthetic mailbox. Pre-change production rollback: `11dffc5a-3b71-4238-9e12-a31e4e9c7d7a`.
 
 - **2026-11-11 — Outlook configuration diagnosis.**
   - Verified the pre-rename and current i4i deployments both lacked the Microsoft credentials and encryption key. Confirmed the i4i D1 had zero Outlook connections and added a new production `TOKEN_KEY` to `campus-common` only.
@@ -104,7 +121,7 @@ Use this format: Completed changes / Files modified / Commit SHA and branch / De
 - [x] Install frozen dependencies and run all tests; exact versions and host runner limitation recorded in Section 5.
 - [x] Verify deployed frontend bytes and all 14 checks from `scripts/check-public-access.mjs` against production; run the equivalent HTTP checks directly (14/14).
 - [ ] Decide one stable mail path for the demo (forwarding, Outlook OAuth, or iPhone Shortcut); configure only that one.
-- [ ] Add the `ai` binding, set `ENABLE_AI`, and verify summary and deadline extraction on sample mail.
+- [x] Add the `ai` binding and enable AI on the repair branch. Verify the real model, Traditional summary, full translation, and deadline on a 0%-traffic candidate.\n- [ ] Verify the final release in production and deliver browser comparison screenshots.
 - [ ] Add a cron trigger if reminders and the digest are in the demo; verify.
 - [x] Confirm the CDS original is unaffected (repository head and live frontend hash unchanged).
 - [x] Campus Common branding, unified workspace entry, denser grouped homepage and new Worker hostname; old i4i links redirect; original workspace functionality retained.

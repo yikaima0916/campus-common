@@ -10,6 +10,15 @@ test('summary retains only points/actions supported by source excerpts',()=>{
  assert.equal(b.points.length,1);assert.equal(b.actions.length,1);assert.equal(b.topic,'Exchange planning');
  assert.throws(()=>validateBrief({title:'Approved',titleEvidence:'approved',points:[]},source));
 });
+test('brief drops an institution absent from the source',()=>{
+ const source='Student workshop. Register by Friday at the Student Centre.';
+ const brief=validateBrief({title:'嶺南大學學生工作坊',titleEvidence:'Student workshop',topic:'嶺南大學',
+   points:[{text:'工作坊在學生中心舉行。',evidence:'at the Student Centre.'}],
+   actions:[{text:'請向嶺南大學報名。',evidence:'Register by Friday'}]},source);
+ assert.equal(brief.title,'Student workshop');
+ assert.equal(brief.topic,'');
+ assert.deepEqual(brief.actions,[]);
+});
 test('brief cache is scoped to account and language',async()=>{
  const keys=[];const env={DB:{prepare(){return {bind(k){keys.push(k);return this},async first(){return null}}}}};
  await attachBriefs(env,'alice','en',[{id:'same',subject:'FW: update'}]);

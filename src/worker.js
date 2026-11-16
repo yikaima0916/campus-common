@@ -1,5 +1,6 @@
+import {mailAiStatus} from './mail-ai.js';
 import { schoolAddress } from './mail.js';
-import {attachBriefs,generateBrief,readBrief,preGenerateBriefs} from './mail-briefs.js';
+import {attachBriefs,generateBrief} from './mail-briefs.js';
 import { meetingTask,wording } from './display.js';
 import { serverMessage,normalizeLocale } from './errors.js';
 import { buildAliasRules,normalizeName,suggestAliasVariants } from './names.js';
@@ -7,11 +8,11 @@ import { listMailSuggestions,reviewMailSuggestion } from './suggestions.js';
 import { validateTask } from './domain.js';
 import { normalizePresets } from '../public/reminder-logic.js';
 import { random,hash,verifyPassword,makePasswordHash,makeAnswerHash,verifyAnswer } from './security.js';
-import { getKV,setKV,startOAuth,finishOAuth,syncMail,preGenerateMailTranslations,reprocessMail,ingestForwardedEmail,ingestShortcutEmail,localizeMessages,outlookConnection,outlookConfigProblems,fetchMessageOriginal,translateFullBody,summarizeLink } from './mail.js';
+import { getKV,setKV,startOAuth,finishOAuth,syncMail,reprocessMail,ingestForwardedEmail,ingestShortcutEmail,localizeMessages,outlookConnection,outlookConfigProblems,fetchMessageOriginal,translateFullBody,summarizeLink } from './mail.js';
 import { applyNameAliases,applyPreferredNameToFields } from './names.js';
-import { normalizeDigestRecord } from './digest-format.js';
+import { normalizeDigestRecord,shapeDigestItem,shapeDigestRecord } from './digest-format.js';
 import { scheduleTask,repeatTasks,deliver,makeDigest,enqueue } from './jobs.js';
-import { projectAction,applyForTask,updateGroup,listInvitations,respondInvitation,manageMember,addGroupMember,createGroup,createTaskCandidate,groupSnapshot,listGroups,respondToAssignment,reviewTaskCandidate } from './collaboration.js';
+import { projectAction,applyForTask,updateGroup,editGroupWork,deleteGroupTask,listInvitations,respondInvitation,manageMember,addGroupMember,createGroup,createTaskCandidate,groupSnapshot,listGroups,respondToAssignment,reviewTaskCandidate } from './collaboration.js';
 import { changeMeeting,confirmMeetingProposal,createMeetingPoll,meetingPollSnapshot,openMeetingVote,submitAvailability,voteMeetingProposal } from './meetings.js';
 const json=(data,status=200)=>Response.json(data,{status});
 async function body(request){if(Number(request.headers.get('content-length'))>7*1024*1024)throw new Error('请求过大');const text=await request.text();if(text.length>7*1024*1024)throw new Error('请求过大');return JSON.parse(text);}
@@ -159,6 +160,9 @@ async function routes(request,env,ctx){
   const suggestionId=path.match(/^\/api\/mail-suggestions\/([\w-]+)$/)?.[1];
   if(suggestionId&&method==='POST')return json(await reviewMailSuggestion(env,account.user_id,suggestionId,await body(request)));
 
+  const groupWork=path.match(/^\/api\/groups\/([\w-]+)\/(projects|candidates|tasks)\/([\w-]+)$/);
+  if(groupWork&&method==='PATCH')return json(await editGroupWork(env,account.user_id,groupWork[1],groupWork[2],groupWork[3],await body(request)));
+  if(groupWork&&groupWork[2]!=='projects'&&method==='DELETE')return json(await deleteGroupTask(env,account.user_id,groupWork[1],groupWork[2],groupWork[3],await body(request)));
   const projectGroup=path.match(/^\/api\/groups\/([\w-]+)\/projects$/)?.[1];
   if(projectGroup&&method==='POST')return json(await projectAction(env,account.user_id,projectGroup,await body(request)),201);
   const applyCandidate=path.match(/^\/api\/task-candidates\/([\w-]+)\/apply$/)?.[1];
@@ -246,11 +250,12 @@ async function routes(request,env,ctx){
   }
   if(path==='/api/mail/briefs'&&method==='POST'){
     const data=await body(request),ids=[...new Set(Array.isArray(data.ids)?data.ids:[])].filter(id=>typeof id==='string').slice(0,2);
+    const preview=data.preview===true;
     const profile=await env.DB.prepare('SELECT locale FROM users WHERE id=?').bind(account.user_id).first();
     const results=[];
     for(const id of ids){
       if(!await env.DB.prepare('SELECT id FROM messages WHERE id=? AND user_id=?').bind(id,account.user_id).first())continue;
-      try{results.push({id,brief:await generateBrief(env,account.user_id,profile?.locale||'zh-CN',id)})}catch(error){console.warn('brief-failure',error.name, /Ungrounded|supported|language|JSON|Original|AI summary/.test(error.message)?error.message.slice(0,100):'generation failed');results.push({id,error:true})}
+      try{results.push({id,brief:await generateBrief(env,account.user_id,profile?.locale||'zh-CN',id,undefined,{preview})})}catch(error){console.warn('brief-failure',error.name, /Ungrounded|supported|language|JSON|Original|AI summary/.test(error.message)?error.message.slice(0,100):'generation failed');results.push({id,error:true})}
     }
     return json({results});
   }
@@ -267,18 +272,17 @@ async function routes(request,env,ctx){
     const wantZh=locale.startsWith('zh')&&prefs.translateZh!==false;
     const localizedRows=await localizeMessages(env,account.user_id,locale,[row],{allowAi:env.ENABLE_AI==='true',translate:wantZh||locale==='en',nameAliases:aliasRules});
     const localized=locale==='en'?(localizedRows[0]||row):applyPreferredNameToFields(localizedRows[0]||row,aliasRules);
-    // 全文翻译：中文页显示英文原文的完整逐句翻译
-    // 获取用户偏好中文名，确保翻译中使用正确的名字（如马艺恺而非 AI 猜测）
+    const brief=await generateBrief(env,account.user_id,locale,id,fetched);
     let fullTranslation=null,translationStatus='disabled';
-    if(wantZh&&englishBody){
-      translationStatus='unavailable';
-      try{
-        const userProfile=await env.DB.prepare('SELECT preferred_zh_name FROM users WHERE id=?').bind(account.user_id).first();
-        const preferredName=userProfile?.preferred_zh_name||'';
-        fullTranslation=await translateFullBody(env,account.user_id,locale,id,englishBody,preferredName);
-      }catch{}
-      if(fullTranslation)translationStatus='ready';
-      else if(env.ENABLE_AI==='true'&&env.AI&&Number(await getKV(env,'fulltrans:cooldown')||0)>Date.now())translationStatus='quota';
+    if(wantZh){
+      if(!fetched.originalAvailable)translationStatus='source-unavailable';
+      else{
+        try{
+          fullTranslation=await translateFullBody(env,account.user_id,locale,id,englishBody,profile?.preferred_zh_name||'');
+          translationStatus=fullTranslation?'ready':await mailAiStatus(env);
+          if(translationStatus==='ready'&&!fullTranslation)translationStatus='unavailable';
+        }catch{translationStatus='unavailable';}
+      }
     }
     return json({
       id:row.id,
@@ -288,8 +292,8 @@ async function routes(request,env,ctx){
       url:row.url||'',
       quality:localized.quality||row.quality,
       chinese:wantZh?{subject:localized.subject,sender:localized.sender,origin:localized.origin,summary:localized.summary,action:localized.action,fullBody:applyNameAliases(fullTranslation,aliasRules)}:null,
-      english:{subject:englishSubject,body:englishBody,html:fetched.englishHtml,images:fetched.images,recipients:recipients||[],summary:prefs.englishSummary&&locale.startsWith('zh')?String(row.summary||''):undefined},
-      display:{...localized,brief:await readBrief(env,account.user_id,locale,id)},
+      english:{subject:englishSubject,body:englishBody,available:fetched.originalAvailable,html:fetched.englishHtml,images:fetched.images,recipients:recipients||[],summary:prefs.englishSummary&&locale.startsWith('zh')?String(row.summary||''):undefined},
+      display:{...localized,brief},
       translationEnabled:wantZh,
       translationStatus,
       englishSummaryEnabled:prefs.englishSummary===true&&locale.startsWith('zh')
@@ -327,7 +331,21 @@ async function routes(request,env,ctx){
       if(aliasRules.length)normalized.body=applyPreferredNameToFields({body:normalized.body},aliasRules).body;
       return [normalized];
     }catch{return []}});
-    for(const record of records)record.items=await attachBriefs(env,account.user_id,account.locale||'zh-CN',record.items||[]);
+    // Show today's mail even when scheduled digests have not been configured.
+    const day=new Date(Date.now()+8*3600000).toISOString().slice(0,10);
+    const start=Date.parse(day+'T00:00:00+08:00');
+    const today=(await env.DB.prepare(
+      'SELECT id,subject,received,sender,origin,category,summary,action FROM messages WHERE user_id=? AND received>=? AND received<? AND category<5 ORDER BY received DESC LIMIT 100'
+    ).bind(account.user_id,start,start+86400000).all()).results;
+    if(today.length&&!records.some(record=>record.title.startsWith(day))){
+      const locale=account.locale||'zh-CN';
+      const title=day+(locale==='zh-TW'?' 學校電郵摘要':locale==='en'?' School mail digest':' 学校邮件汇总');
+      records.unshift(shapeDigestRecord({title,created:Date.now(),items:today.map(row=>({...shapeDigestItem(row),ignored:ignoredIds.has(row.id)}))}));
+    }
+    for(const record of records){
+      const items=await localizeMessages(env,account.user_id,account.locale,record.items||[],{nameAliases:aliasRules});
+      record.items=await attachBriefs(env,account.user_id,account.locale||'zh-CN',items);
+    }
     return json(records);
   }
   if(path==='/api/outlook/start'&&method==='GET'){
@@ -340,16 +358,12 @@ async function routes(request,env,ctx){
       const message=error.oauthFailure?error.message:'本次 Outlook 连接未完成，请返回设置重新发起连接。';
       return new Response(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Outlook 连接未完成</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/theme.css"></head><body><main style="max-width:600px;margin:12vh auto;padding:24px"><section class="setting-card"><h1>Outlook 连接未完成</h1><p>${message}</p><p><a class="primary" href="/api/outlook/start">重新连接 Microsoft ↗</a></p><a href="/?view=settings">返回设置</a></section></main></body></html>`,{status:400,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
     }
-    try{const result=await syncMail(env,account.user_id);if(result.importedIds?.length){const translations=preGenerateMailTranslations(env,account.user_id,result.importedIds).catch(()=>{});if(ctx?.waitUntil)ctx.waitUntil(translations);else await translations;}}catch(error){await env.DB.prepare('UPDATE outlook_connections SET status=? WHERE user_id=?').bind(String(error.message).slice(0,300),account.user_id).run();}
-    // 后台预生成新邮件的 AI 摘要（不阻塞跳转）
-    try{const briefs=preGenerateBriefs(env,account.user_id).catch(()=>{});if(ctx?.waitUntil)ctx.waitUntil(briefs);}catch{}
+    try{await syncMail(env,account.user_id);}
+    catch(error){await env.DB.prepare('UPDATE outlook_connections SET status=? WHERE user_id=?').bind(String(error.message).slice(0,300),account.user_id).run();}
     return Response.redirect(url.origin+'/?view=settings');
   }
   if(path==='/api/outlook/sync'&&method==='POST'){
     const result=await syncMail(env,account.user_id);
-    // 后台预生成摘要和全文翻译，不阻塞同步响应。
-    try{const briefs=preGenerateBriefs(env,account.user_id).catch(()=>{});if(ctx?.waitUntil)ctx.waitUntil(briefs);}catch{}
-    if(result.importedIds?.length)try{const translations=preGenerateMailTranslations(env,account.user_id,result.importedIds).catch(()=>{});if(ctx?.waitUntil)ctx.waitUntil(translations);else await translations;}catch{}
     return json({imported:result.imported||0,pages:result.pages||0,more:!!result.more});
   }
   if(path==='/api/outlook'&&method==='DELETE'){
@@ -398,10 +412,7 @@ export default {
         for(const connection of connections){
           await env.DB.prepare('UPDATE outlook_connections SET last_attempt=? WHERE user_id=?').bind(now,connection.user_id).run();
           try{
-            const syncResult=await syncMail(env,connection.user_id);
-            if(syncResult.importedIds?.length)try{await preGenerateMailTranslations(env,connection.user_id,syncResult.importedIds);}catch{}
-            // 定时任务中预生成摘要（等待完成，因为是后台任务）
-            try{await preGenerateBriefs(env,connection.user_id,3);}catch{}
+            await syncMail(env,connection.user_id);
           }catch(error){await env.DB.prepare('UPDATE outlook_connections SET status=? WHERE user_id=?').bind(String(error.message).slice(0,300),connection.user_id).run();}
         }
       }

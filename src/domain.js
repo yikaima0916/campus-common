@@ -67,13 +67,22 @@ export function originalSender(body,outer,school,selfAddresses=[]) {
   if(normalizedSchool&&normalizedOuter.includes(normalizedSchool)) return '原始发件人无法确认（学校账号仅为转发者）';
   return outer || '原始发件人无法确认';
 }
+// A receipt may quote the original deadline. Only an explicit correction or
+// resubmission request makes it actionable again.
+export function isCompletionReceipt(subject='', body='') {
+  const title=String(subject).replace(/^(?:(?:fw|fwd|re)\s*:\s*)+/i,'');
+  const text=String(body).slice(0,1200);
+  if(/(?:resubmission required|please (?:correct and )?resubmit|submission (?:failed|was rejected)|must resubmit|請重新提交|请重新提交)/i.test(title+'\n'+text))return false;
+  return /\b(?:submission confirmation|assignment submitted|registration confirm(?:ed|ation)|successfully (?:submitted|completed|registered)|completion confirmation)\b|提交成功|成功提交|報名確認|报名确认|已成功完成/i.test(title)
+    || /\b(?:you have (?:successfully )?(?:submitted|registered|completed)|your (?:assignment|submission|registration) (?:has been |was |is )?(?:successfully )?(?:submitted|received|confirmed|successful|complete)|submission (?:was )?successful|successfully submitted)\b|成功提交|已確認報名|报名成功/i.test(text);
+}
+
 export function classify(subject,body) {
   const text=subject+'\n'+body;
-  const success=/(successfully submitted|submission (?:was )?successful|已成功提交|成功提交|you have submitted)/i.test(text)&&!/(failed|resubmit|重新提交|提交失败|late submission)/i.test(text);
+  if(isCompletionReceipt(subject,body))return 6;
   if(/scholarship|奖学金|獎學金|payroll|salary|wages|timesheet|工时|工時|薪|报酬|報酬|ITSC.*(?:assistant|助手)|payment|助学金|助學金/i.test(text))return 1;
-  if(success)return 6;
   if(/assignment|homework|coursework|作业|作業|考试|考試|quiz|submission deadline/i.test(text))return 2;
-  if(/ILP|course recommendation|课程推荐|課程推薦|recommended course/i.test(text))return 4;
+  if(/\bILP\b|course recommendation|课程推荐|課程推薦|recommended course/i.test(text))return 4;
   if(/chaplain|worship|prayer|崇拜|祈祷|祈禱|校牧|圣经|聖經/i.test(text))return 5;
   return 3;
 }

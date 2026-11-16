@@ -1,5 +1,5 @@
 import { assignmentReminders, validateTask } from './domain.js';
-import { scheduleTask, enqueue } from './jobs.js';
+import { scheduleTask, taskJobRows, enqueue } from './jobs.js';
 import { meetingTask } from './display.js';
 
 export class CollaborationError extends Error {
@@ -80,7 +80,7 @@ export async function groupSnapshot(env,actorId,groupId){
   const taskByCandidate=new Map(tasks.filter(task=>task.candidate_id).map(task=>[task.candidate_id,task]));
   const candidates=(await env.DB.prepare('SELECT * FROM task_candidates WHERE group_id=? ORDER BY status,created DESC').bind(groupId).all()).results.map(row=>{
     const task=taskByCandidate.get(row.id),nextAction=row.status==='pending'?'owner_review':task?.acceptance_status==='pending'?'assignee_accept':task?.acceptance_status==='accepted'?(task.completed?'completed':'in_progress'):task?.acceptance_status==='declined'?'declined':'done';
-    return {...row,evidence:JSON.parse(row.evidence),next_action:nextAction,next_actor_user_id:nextAction==='owner_review'?access.owner_user_id:nextAction==='assignee_accept'?task.user_id:null};
+    return {...row,...(task?{title:task.title,notes:task.notes,due:task.due}:{}),evidence:JSON.parse(row.evidence),next_action:nextAction,next_actor_user_id:nextAction==='owner_review'?access.owner_user_id:nextAction==='assignee_accept'?task.user_id:null};
   });
   const meetingPolls=(await env.DB.prepare('SELECT id,name,range_start,range_end,duration_minutes,buffer_minutes,status,phase,confirmed_start,confirmed_end,created FROM meeting_polls WHERE group_id=? ORDER BY status,created DESC').bind(groupId).all()).results;
   // Meeting-derived tasks were stored per member locale from 2026-10; older
@@ -106,12 +106,22 @@ export async function addGroupMember(env,actorId,groupId,email){
   return {ok:true,status:'pending'};
 }
 
-export async function createTaskCandidate(env,actorId,groupId,input){
+export async function createTaskCandidate(env,actorId,groupId,input,projectId=null){
   await membership(env,groupId,actorId);
   const candidate=new TaskCandidate(input);
   if(candidate.proposedAssigneeId&&!await memberExists(env,groupId,candidate.proposedAssigneeId))throw new CollaborationError('建议负责人不是小组成员',400);
   const now=Date.now(),row={id:crypto.randomUUID(),group_id:groupId,creator_user_id:actorId,proposed_assignee_id:candidate.proposedAssigneeId,title:candidate.title,notes:candidate.notes,due:candidate.due,evidence:candidate.evidence,status:'pending',created:now,updated:now};
-  await env.DB.prepare('INSERT INTO task_candidates(id,group_id,creator_user_id,proposed_assignee_id,title,notes,due,evidence,status,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(row.id,row.group_id,row.creator_user_id,row.proposed_assignee_id,row.title,row.notes,row.due,JSON.stringify(row.evidence),row.status,now,now).run();
+  const result=await env.DB.prepare(`INSERT INTO task_candidates(id,group_id,creator_user_id,proposed_assignee_id,title,notes,due,evidence,status,created,updated,project_id)
+    SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE ? IS NULL OR NOT EXISTS (
+      SELECT 1 FROM task_candidates c LEFT JOIN tasks t ON t.candidate_id=c.id
+      WHERE c.group_id=? AND c.project_id=? AND (
+        (c.status='pending' AND c.title=? AND c.notes=? AND c.due IS ? AND c.proposed_assignee_id IS ?)
+        OR (t.completed=0 AND t.acceptance_status IN ('pending','accepted')
+          AND t.title=? AND t.notes=? AND t.due IS ? AND t.user_id IS ?)
+      )
+    )`).bind(row.id,row.group_id,row.creator_user_id,row.proposed_assignee_id,row.title,row.notes,row.due,JSON.stringify(row.evidence),row.status,now,now,projectId,projectId,groupId,projectId,
+      row.title,row.notes,row.due,row.proposed_assignee_id,row.title,row.notes,row.due,row.proposed_assignee_id).run();
+  if(!result.meta.changes)throw new CollaborationError('此项目已有相同的未完成子任务',409);
   return row;
 }
 
@@ -136,10 +146,10 @@ export async function reviewTaskCandidate(env,actorId,candidateId,review){
   const task={...valid,id:crypto.randomUUID(),version:1,source:'candidate',source_id:candidateId,created:now,updated:now,user_id:assigneeId,group_id:row.group_id,assigned_by:actorId,acceptance_status:acceptanceStatus,candidate_id:candidateId};
   let claimed;
   try{[claimed]=await env.DB.batch([
-    env.DB.prepare("UPDATE task_candidates SET title=?,notes=?,due=?,proposed_assignee_id=?,evidence=?,status='confirmed',updated=? WHERE id=? AND status='pending'").bind(candidate.title,candidate.notes,candidate.due,assigneeId,JSON.stringify(candidate.evidence),now,candidateId),
+    env.DB.prepare("UPDATE task_candidates SET title=?,notes=?,due=?,proposed_assignee_id=?,evidence=?,status='confirmed',updated=? WHERE id=? AND status='pending' AND updated=?").bind(candidate.title,candidate.notes,candidate.due,assigneeId,JSON.stringify(candidate.evidence),now,candidateId,row.updated),
     env.DB.prepare('INSERT INTO tasks(id,title,notes,due,priority,completed,source,source_id,reminders,version,created,updated,user_id,group_id,assigned_by,acceptance_status,candidate_id) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE changes()=1').bind(task.id,task.title,task.notes,task.due,task.priority,task.completed,task.source,task.source_id,JSON.stringify(task.reminders),task.version,now,now,task.user_id,task.group_id,task.assigned_by,task.acceptance_status,task.candidate_id)
   ]);}catch(error){if(/UNIQUE|constraint/i.test(String(error)))throw new CollaborationError('候选任务无法重复创建',409);throw error;}
-  if(!claimed.meta?.changes)throw new CollaborationError('候选任务已经处理',409);
+  if(!claimed.meta?.changes)throw new CollaborationError('任务已在其他设备更新，请刷新后重试',409);
   await groupNotice(env,assigneeId,row.group_id,'任务邀请',task.title);
   await env.DB.prepare("UPDATE task_applications SET status=CASE WHEN user_id=? THEN 'approved' ELSE 'closed' END WHERE candidate_id=? AND status='pending'").bind(assigneeId,candidateId).run();
   return {...task,reminders:task.reminders};
@@ -202,7 +212,76 @@ export async function updateGroup(env,actorId,groupId,input){
  if(access.role!=='owner')throw new CollaborationError('只有组长可以修改小组信息',403);
  const name=requiredText(input.name,'小组名称',80),description=String(input.description||'').trim();
  if(description.length>1000)throw new CollaborationError('小组描述最多 1000 字');
- await env.DB.prepare('UPDATE groups SET name=?,description=?,updated=? WHERE id=?').bind(name,description,Date.now(),groupId).run();
+ const result=await env.DB.prepare('UPDATE groups SET name=?,description=?,updated=? WHERE id=? AND owner_user_id=?').bind(name,description,Date.now(),groupId,actorId).run();
+ if(!result.meta.changes)throw new CollaborationError('只有组长可以修改小组信息',403);
+ return {ok:true};
+}
+
+export async function editGroupWork(env,actorId,groupId,kind,id,input){
+ const access=await membership(env,groupId,actorId);
+ if(access.role!=='owner')throw new CollaborationError('只有组长可以编辑小组任务',403);
+ const title=requiredText(input.title,'任务名称',200),notes=String(input.notes??'').slice(0,5000);
+ const stale='任务已在其他设备更新，请刷新后重试';
+ const stillOwner='EXISTS (SELECT 1 FROM groups WHERE id=? AND owner_user_id=?)';
+
+ if(kind==='projects'){
+  const result=await env.DB.prepare(`UPDATE group_projects SET title=?,notes=? WHERE id=? AND group_id=? AND ${stillOwner}`)
+   .bind(title,notes,id,groupId,groupId,actorId).run();
+  if(!result.meta.changes)throw new CollaborationError('总任务不存在',404);
+  return {ok:true};
+ }
+
+ const due=optionalDue(input.due),now=Date.now();
+ if(kind==='candidates'){
+  const result=await env.DB.prepare(`UPDATE task_candidates SET title=?,notes=?,due=?,updated=MAX(updated+1,?)
+    WHERE id=? AND group_id=? AND status='pending' AND updated=? AND ${stillOwner}`)
+   .bind(title,notes,due,now,id,groupId,input.updated??null,groupId,actorId).run();
+  if(!result.meta.changes)throw new CollaborationError(stale,409);
+  return {ok:true};
+ }
+
+ const current=await env.DB.prepare("SELECT * FROM tasks WHERE id=? AND group_id=? AND COALESCE(source,'')<>'meeting'").bind(id,groupId).first();
+ if(!current)throw new CollaborationError('小组任务不存在',404);
+ if(input.version!==current.version)throw new CollaborationError(stale,409);
+ const task={...current,title,notes,due,reminders:JSON.parse(current.reminders),version:current.version+1};
+ const jobs=await taskJobRows(env,task,now);
+ const statements=[env.DB.prepare(`UPDATE tasks SET title=?,notes=?,due=?,version=?,updated=?
+   WHERE id=? AND group_id=? AND version=? AND ${stillOwner}`)
+  .bind(title,notes,due,task.version,now,id,groupId,current.version,groupId,actorId)];
+ // D1 executes the batch in a transaction. Schedule only if this edit won the version check.
+ if(jobs.length)statements.push(env.DB.prepare(`INSERT OR IGNORE INTO jobs(id,task_id,version,at,channel,payload,user_id)
+   SELECT json_extract(value,'$.id'),?,?,json_extract(value,'$.at'),json_extract(value,'$.channel'),json_extract(value,'$.payload'),?
+   FROM json_each(?) WHERE changes()=1`).bind(id,task.version,task.user_id,JSON.stringify(jobs)));
+ statements.push(env.DB.prepare(`UPDATE jobs SET state='cancelled' WHERE task_id=? AND version=? AND state IN ('pending','sending')
+   AND EXISTS (SELECT 1 FROM tasks WHERE id=? AND group_id=? AND version>?)`).bind(id,current.version,id,groupId,current.version));
+ const [updated]=await env.DB.batch(statements);
+ if(!updated.meta.changes)throw new CollaborationError(stale,409);
+ return {ok:true};
+}
+
+export async function deleteGroupTask(env,actorId,groupId,kind,id,input){
+ const access=await membership(env,groupId,actorId);
+ if(access.role!=='owner')throw new CollaborationError('只有组长可以删除小组任务',403);
+ const stillOwner='EXISTS (SELECT 1 FROM groups WHERE id=? AND owner_user_id=?)';
+ const pendingCandidate=kind==='candidates';
+ const match=pendingCandidate
+  ?"id=? AND group_id=? AND status='pending' AND updated=?"
+  :"id=? AND group_id=? AND COALESCE(source,'')<>'meeting' AND version=?";
+ const source=pendingCandidate?'task_candidates':'tasks';
+ const args=[id,groupId,(pendingCandidate?input.updated:input.version)??null,groupId,actorId];
+ const candidateId=pendingCandidate?'id':'candidate_id';
+ const matching=`SELECT ${candidateId} FROM ${source} WHERE ${match} AND ${stillOwner}`;
+ const statements=[
+  env.DB.prepare(`DELETE FROM task_applications WHERE candidate_id IN (${matching})`).bind(...args)
+ ];
+ if(!pendingCandidate)statements.push(
+  env.DB.prepare(`DELETE FROM task_candidates WHERE group_id=? AND id IN (${matching})`).bind(groupId,...args),
+  env.DB.prepare(`UPDATE jobs SET state='cancelled' WHERE task_id=? AND state IN ('pending','sending')
+    AND EXISTS (SELECT 1 FROM tasks WHERE ${match} AND ${stillOwner})`).bind(id,...args)
+ );
+ statements.push(env.DB.prepare(`DELETE FROM ${source} WHERE ${match} AND ${stillOwner}`).bind(...args));
+ const results=await env.DB.batch(statements);
+ if(!results.at(-1).meta.changes)throw new CollaborationError('任务已更新，请刷新',409);
  return {ok:true};
 }
 
@@ -218,8 +297,7 @@ export async function projectAction(env,actorId,groupId,input){
   const id=crypto.randomUUID();await env.DB.prepare('INSERT INTO group_projects(id,group_id,title,notes,created) VALUES(?,?,?,?,?)').bind(id,groupId,requiredText(input.title,'总任务',200),String(input.notes||'').slice(0,5000),Date.now()).run();return {id};
  }
  if(!await env.DB.prepare('SELECT id FROM group_projects WHERE id=? AND group_id=?').bind(input.projectId,groupId).first())throw new CollaborationError('总任务不存在',404);
- const candidate=await createTaskCandidate(env,actorId,groupId,input);
- await env.DB.prepare('UPDATE task_candidates SET project_id=? WHERE id=?').bind(input.projectId,candidate.id).run();
+ const candidate=await createTaskCandidate(env,actorId,groupId,input,input.projectId);
  if(input.proposedAssigneeId)await reviewTaskCandidate(env,actorId,candidate.id,{decision:'confirm'});
  return candidate;
 }
