@@ -228,7 +228,8 @@ $('#task-form').onsubmit=async event=>{
     if(editing)data.version=editing.version;
     const mailDraft=mailTaskDraft;
     const result=mailDraft?await api('tasks/from-mail',{method:'POST',body:{messageId:mailDraft.messageId,title:data.title,notes:data.notes,due:data.due,priority:data.priority}}):await api(editing?'tasks/'+editing.id:'tasks',{method:editing?'PATCH':'POST',body:data});
-    const saved=result?.task||result;
+    const task=result?.task||result;
+    const saved={...task,completed:Boolean(task.completed)};
     const index=tasks.findIndex(task=>task.id===saved.id);
     if(index<0)tasks.unshift(saved);else tasks[index]={...tasks[index],...saved};
     save.textContent=local('已保存 ✓','已儲存 ✓','Saved ✓');
@@ -1198,7 +1199,12 @@ document.addEventListener('click',event=>{
   const go=event.target.closest('#pub [data-go]');if(go){event.preventDefault();navigatePublic(go.dataset.go);return;}
   const open=event.target.closest('#pub [data-open]');if(open){event.preventDefault();openWorkspace(open.dataset.open);return;}
   const soon=event.target.closest('#pub [data-soon]');
-  if(soon){soon.classList.remove('nudge');void soon.offsetWidth;soon.classList.add('nudge');toast(tx('pubSoonToast'));return;}
+  if(soon){
+    const selected=soon.getAttribute('aria-pressed')==='true';
+    soon.setAttribute('aria-pressed',String(!selected));
+    toast(tx('pubSoonToast'));
+    return;
+  }
   const menuItem=event.target.closest('#pub [data-pub-open]');if(menuItem){closePubMenu();openWorkspace(menuItem.dataset.pubOpen);return;}
   if(!event.target.closest('#pub-account'))closePubMenu();
 });

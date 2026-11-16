@@ -48,8 +48,34 @@ aside .brand .bi-dock{width:44px;height:44px;border-radius:26%;box-shadow:0 2px 
 .bi.is-paused *{animation-play-state:paused!important}
 @media(max-width:700px){.login{margin:0 auto;padding-top:24px}.login .brand.login-brand{gap:12px;margin-bottom:22px}.login h1{font-size:36px}}
 
-/* A quiet resident brand mark in the task header. */
-#tasks-view>.page-heading{position:relative;min-height:180px}
-.bi-home{position:absolute;width:168px;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 12px 30px rgba(23,111,104,.08)}
-@media(min-width:701px) and (max-width:1100px){#tasks-view>.page-heading{padding-top:158px}.bi-home{width:132px;top:8px;transform:translateX(-50%)}}
-@media(max-width:700px){#tasks-view>.page-heading{padding-top:140px;min-height:0}.bi-home{width:120px;top:8px;transform:translateX(-50%)}}
+/* Keep the mark centred in the content area, independent of the title and action widths. */
+#tasks-view > .page-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas: "title mark action";
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0 24px;
+}
+#tasks-view > .page-heading > div { grid-area: title; min-width: 0; }
+#tasks-view > .page-heading h1 { font-size: clamp(32px, 3vw, 40px); overflow-wrap: anywhere; }
+#tasks-view > .page-heading > .primary { grid-area: action; justify-self: end; }
+.bi-home {
+  grid-area: mark;
+  justify-self: center;
+  width: 150px;
+  pointer-events: none;
+  box-shadow: 0 12px 30px rgba(23, 111, 104, .08);
+}
+@media (max-width: 1000px) {
+  #tasks-view > .page-heading {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "mark mark" "title action";
+  }
+  .bi-home { width: 132px; }
+}
+@media (max-width: 700px) {
+  #tasks-view > .page-heading { gap: 12px; padding: 8px 0 18px; }
+  #tasks-view > .page-heading h1 { font-size: clamp(25px, 7vw, 32px); }
+  .bi-home { width: 110px; }
+}
