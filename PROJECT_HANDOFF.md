@@ -7,11 +7,8 @@ Technical detail lives in README.md, CONTEXT.md, I4I-ISOLATION.md and docs/TEAM_
 
 ## 1. Product and goal
 
-- This repo is the **i4i competition version** of **Campus Common** (the owner explicitly requested the same English brand in every language on 2026-11-10; retain the existing logo).
+- Campus Common brings academic tools, campus email and student collaboration into one workspace.
 - Positioning: AI Campus Assistant + Academic Hub + Non-Academic Hub. Email AI is the first real MVP module, not the whole product.
-- Event: Innovate4Impact, Lingnan University, Final Pitch **2026-11-23** (poster: 17:30–20:00, LYH31920; speaking time per organizer notice, design for 7 min, compressible to 5).
-- Pitch strategy: big vision and plan first, then the real MVP demo. Primary SDG 3 (SDG 4 secondary, not formally declared).
-- Near-term goals: (1) stable i4i site, (2) working email-to-task flow, (3) 8-slide deck, (4) 60–75 s real screen-recording demo.
 
 ## 2. Hard rules
 
@@ -28,11 +25,11 @@ Technical detail lives in README.md, CONTEXT.md, I4I-ISOLATION.md and docs/TEAM_
 | Item | Value |
 | --- | --- |
 | Site | https://campus-common.campus-companion.workers.dev/ |
-| Repo | github.com/yikamai0916-sys/campus-companion-i4i (private), branch `main` |
+| Repo | github.com/yikamai0916-sys/campus-common (private), branch `main` |
 | Worker / D1 | `campus-common` / `campus-companion-i4i` (same isolated D1, no migration) |
 | Legacy URL | `campus-companion-i4i.campus-companion.workers.dev` redirects to the current site |
 | Based on | CDS commit 73cd9f2d97a347ee2f9aa2780ddd13f6dd824773 |
-| Other site | `campus-common-preview.pages.dev`: possibly related early prototype (second-hand / forum). Do not merge, modify or delete it before the pitch. |
+| Other site | `campus-common-preview.pages.dev`: possibly related early prototype (second-hand / forum). Keep this prototype separate from the hosted workspace. |
 
 ## 4. Feature status (update after each change)
 
@@ -58,7 +55,7 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 Use this format: Completed changes / Files modified / Commit SHA and branch / Deployed? (worker, URL) / Verification run vs not run / Known issues / Next steps.
 
 - **2026-11-16 — Reserve mail AI quota for opened messages.**
-  - The competition mailbox successfully synced again. Opening an existing email reached the live AI quota warning. Keep the existing daily cap. Background mail and digest previews now share at most one third of it, leaving the rest available for explicitly opened mail, including full translation.
+  - The Campus Common mailbox successfully synced again. Opening an existing email reached the live AI quota warning. Keep the existing daily cap. Background mail and digest previews now share at most one third of it, leaving the rest available for explicitly opened mail, including full translation.
   - Files: `src/mail-ai.js`, `src/mail-briefs.js`, `src/worker.js`, `public/app.js`, `test/mail-ai-budget.test.js`. Branch: `fix/i4i-mail-ai-budget`. The SQLite quota regression check passed. Production deployment and post-reset verification are pending.
 
 - **2026-11-14 — Mail AI repair deployed and verified.**
@@ -83,7 +80,7 @@ Use this format: Completed changes / Files modified / Commit SHA and branch / De
   - Every visible brand, login/sidebar title, PWA name and notification title now uses Campus Common in EN / 简 / 繁. Retained logo and existing internal account/database identifiers.
   - Combined Mail / Tasks / Groups / Daily Digest into one Study Workspace entry, restoring the last visited workspace view. Removed the duplicate Email Assistant CTA and intermediary Academic/Campus Life menu screens; legacy section hashes scroll to the grouped homepage.
   - Wider responsive two-column homepage, compact brand header, mint active workspace and compact future modules. Homepage/GetHomepage GitHub and official layout documentation informed grouped columns; no external code or dependencies added.
-  - Target Worker `campus-common`, same isolated i4i D1 and runtime bindings. Old competition Worker becomes a 307 no-store redirect preserving path/query/method; original CDS Worker and account-level workers.dev suffix are excluded. New hostname requires signing in again; existing accounts/data remain in the same D1.
+  - Target Worker `campus-common`, same isolated i4i D1 and runtime bindings. Legacy Worker becomes a 307 no-store redirect preserving path/query/method; original CDS Worker and account-level workers.dev suffix are excluded. New hostname requires signing in again; existing accounts/data remain in the same D1.
   - Verification so far: 972 translation/brand assertions; one workspace entry and no obsolete intermediary markup; all three backend file diffs are exact brand substitutions. Local Safari EN/简/繁 brand, dark toggle and signed-out workspace/login target verified. Full test/CLI startup stalled on this host; the earlier 102-test result is historical, not a new run. A fresh esbuild bundle was generated from the current source; external Node builtin require calls were converted to static node: imports for the nodejs_compat runtime. The new bundle passed production registration/login and task checks.
   - Live: **https://campus-common.campus-companion.workers.dev/**. Active version **`e92befca-1884-4b06-a12f-41ea31e39961`**, 100% traffic, verified 2026-11-11 00:20 HKT. Legacy redirect version `f45f7260-7519-408e-9260-e34899d9a870` on `campus-companion-i4i`. Main implementation commit `5aee52274d1727e56cc505de3b651169feb6404a`; the following source commit contains the final public button color-transition fix and this verification record.
   - Production: 10 public/deep-link/auth access checks; registration + login + task create/read/complete/delete + mail/groups/digests reads + logout/session invalidation passed. A first PATCH without a version correctly returned 409; the versioned update passed. One new disposable QA account/task was created and removed; D1 confirmed zero remaining accounts for that exact QA email. All 35 deployed static assets matched the release package; all 6 old-URL redirect checks passed, preserving paths/queries and using no-store.
