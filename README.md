@@ -7,7 +7,7 @@
 <p align="center"><strong>One place for academic support and campus life.</strong></p>
 
 <p align="center">
-  <a href="https://campus-common.campus-companion.workers.dev/">Open Campus Common</a> ·
+  <a href="https://campus-common.pages.dev/">Open Campus Common</a> ·
   <a href="#current-workspace">Current workspace</a> ·
   <a href="#roadmap">Roadmap</a>
 </p>
