@@ -241,7 +241,7 @@ $('#task-form').onsubmit=async event=>{
   finally{save.disabled=false;save.textContent=originalLabel;}
 };
 let mailNextBefore=null,mailLoadingMore=false;
-const categoryKey=c=>({1:'cat1',2:'cat2',3:'cat3',4:'cat4'}[c]||'cat3');
+const mailTopic=brief=>!brief?.fallback&&typeof brief?.topic==='string'?brief.topic.trim():'';
 const briefRequests=new Map();
 const containsCjk=value=>/[\u3400-\u9fff]/.test(String(value||''));
 const englishBriefIsUsable=brief=>!!brief&&![brief.title,brief.topic,...(brief.points||[]).map(p=>p.text),...(brief.actions||[]).map(p=>p.text)].some(containsCjk);
@@ -308,8 +308,8 @@ function mailCard(m){
   const safe=(value,fallback)=>english&&containsCjk(value)?fallback:value;
   const subject=safe(String(m.subject||'').replace(/^(?:(?:fw|fwd|re)\s*:\s*)+/i,''),'Email summary unavailable');
   const sender=safe(m.sender,'Sender unavailable'),origin=safe(m.origin,'Source not identified');
-  const topic=(!brief?.fallback&&safe(brief?.topic,''))||tx(categoryKey(m.category));
-  return `<article class="mail-card" data-open-mail="${encodeURIComponent(m.id)}" tabindex="0" role="button"><div class="mail-card-head"><div class="meta"><span class="badge ${m.category===1?'high':''}">${esc(topic)}</span><span>${esc(fmt(m.received))}</span></div><button class="icon-delete" data-delete-mail="${encodeURIComponent(m.id)}" aria-label="${esc(tx('deleteMail'))}">${esc(tx('delete'))}</button></div><h2>${esc(brief?.title||subject)}</h2><div class="sender">${esc(tx('originalSender'))} ${esc(sender)}<br>${esc(tx('source'))} ${esc(origin)}</div>${brief?briefContent({...m,brief}):briefFallback({...m,brief:null,summary:safe(m.summary,'')})}</article>`;
+  const topic=safe(mailTopic(brief),'');
+  return `<article class="mail-card" data-open-mail="${encodeURIComponent(m.id)}" tabindex="0" role="button"><div class="mail-card-head"><div class="meta">${topic?`<span class="badge">${esc(topic)}</span>`:''}<span>${esc(fmt(m.received))}</span></div><button class="icon-delete" data-delete-mail="${encodeURIComponent(m.id)}" aria-label="${esc(tx('deleteMail'))}">${esc(tx('delete'))}</button></div><h2>${esc(brief?.title||subject)}</h2><div class="sender">${esc(tx('originalSender'))} ${esc(sender)}<br>${esc(tx('source'))} ${esc(origin)}</div>${brief?briefContent({...m,brief}):briefFallback({...m,brief:null,summary:safe(m.summary,'')})}</article>`;
 }
 function bindMailList(root){
   root.querySelectorAll('[data-open-mail]').forEach(card=>{
@@ -480,7 +480,8 @@ async function openMailDetail(id,{push=true}={}){
     const safe=(value,fallback)=>englishUi&&containsCjk(value)?fallback:value;
     const subject=String(detail.english?.subject||display.subject||'').replace(/^(?:(?:fw|fwd|re)\s*:\s*)+/i,'');
     $('#mail-detail-title').textContent=englishBrief?.title||safe(subject,'Original email');
-    $('#mail-detail-meta').innerHTML=`<span class="badge">${esc(safe(!display.brief?.fallback&&display.brief?.topic,'')||tx(categoryKey(detail.category)))}</span><span>${esc(safe(display.sender,'Sender unavailable'))}</span><span>${esc(safe(display.origin,'Source not identified'))}</span><time>${esc(fmt(detail.received))}</time>`;
+    const topic=safe(mailTopic(display.brief),'');
+    $('#mail-detail-meta').innerHTML=`${topic?`<span class="badge">${esc(topic)}</span>`:''}<span>${esc(safe(display.sender,'Sender unavailable'))}</span><span>${esc(safe(display.origin,'Source not identified'))}</span><time>${esc(fmt(detail.received))}</time>`;
     const zhPane=$('#mail-detail-zh'),enPane=$('#mail-detail-en');
     zhPane.innerHTML=display.brief?briefContent(display):'';
     const original=renderMailBody(detail.english||{});
@@ -603,7 +604,7 @@ function digestLede(o){
 }
 function digestBody(r,key){
   const it=r.item,brief=locale==='en'&&!englishBriefIsUsable(it.brief)?null:it.brief;
-  const meta=[digestText(brief?.topic||(it.category?tx(categoryKey(it.category)):''),'Topic unavailable'),digestText(it.origin||it.sender,'Sender unavailable'),it.received?fmt(it.received):''].filter(Boolean);
+  const meta=[digestText(mailTopic(brief),''),digestText(it.origin||it.sender,'Sender unavailable'),it.received?fmt(it.received):''].filter(Boolean);
   let html=meta.length?`<p class="dg-meta" data-user-content>${esc(meta.join(' · '))}</p>`:'';
   if(brief)html+=digestBriefContent({...it,brief});
   else if(it.briefLoading)html+=`<div class="dg-skel" role="status" aria-label="${esc(local('正在从原文整理要点','正在從原文整理重點','Reading the original email'))}"><span></span><span></span><span></span></div><p class="dg-note">${esc(local('正在从原文整理要点…','正在從原文整理重點…','Reading the original email…'))}</p>`;
