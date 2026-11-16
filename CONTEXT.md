@@ -1,8 +1,8 @@
-# Campus Companion Domain Language
+# Campus Common Domain Language
 
 ## User
 
-A student with a private Campus Companion account. A User can belong to several Groups. Private records are always read and written through the authenticated User.
+A student with a private Campus Common account. A User can belong to several Groups. Private records are always read and written through the authenticated User.
 
 ## Group
 
