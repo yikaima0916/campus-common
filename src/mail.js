@@ -9,9 +9,25 @@ export const getKV=async(env,key)=> (await env.DB.prepare('SELECT value FROM kv 
 export const setKV=(env,key,value)=>env.DB.prepare('INSERT INTO kv(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,value).run();
 const scope='offline_access User.Read Mail.Read';
 const placeholder=value=>!String(value||'').trim()||/^(?:REPLACE_WITH_|replace-with-|your[-_]|generated_by_)/i.test(String(value).trim());
+function configuredOrigin(value) {
+  try {
+    const url=new URL(value);
+    if(['http:','https:'].includes(url.protocol)&&url.origin===String(value).replace(/\/$/,''))return url.origin;
+  } catch { /* Treat invalid configuration as absent. */ }
+  return '';
+}
+
+function outlookRedirectUri(env,requestOrigin='') {
+  const primary=configuredOrigin(env.APP_ORIGIN);
+  const alternate=configuredOrigin(env.ALTERNATE_APP_ORIGIN);
+  const origin=requestOrigin||primary;
+  if(!primary||![primary,alternate].includes(origin))return '';
+  return origin+'/api/outlook/callback';
+}
+
 export function outlookConfigProblems(env,requestOrigin=''){
   const problems=['MS_CLIENT_ID','MS_CLIENT_SECRET','APP_ORIGIN','TOKEN_KEY'].filter(key=>placeholder(env[key]));
-  if(!problems.includes('APP_ORIGIN'))try{const configured=new URL(env.APP_ORIGIN);if(!['http:','https:'].includes(configured.protocol)||configured.origin!==String(env.APP_ORIGIN).replace(/\/$/,'')||(requestOrigin&&configured.origin!==requestOrigin))problems.push('APP_ORIGIN');}catch{problems.push('APP_ORIGIN');}
+  if(!outlookRedirectUri(env,requestOrigin))problems.push('APP_ORIGIN');
   if(!problems.includes('TOKEN_KEY'))try{if(Uint8Array.from(atob(String(env.TOKEN_KEY).replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0)).length!==32)problems.push('TOKEN_KEY');}catch{problems.push('TOKEN_KEY');}
   return [...new Set(problems)];
 }
@@ -38,7 +54,7 @@ export async function startOAuth(env,session,loginHint='',requestOrigin='') {
   const state=random(), verifier=random();
   await env.DB.prepare('INSERT INTO oauth(state,verifier,session,expires,user_id) VALUES(?,?,?,?,?)').bind(state,verifier,session.id,Date.now()+600000,session.user_id).run();
   const url=new URL('https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize');
-  const params={client_id:env.MS_CLIENT_ID,response_type:'code',redirect_uri:env.APP_ORIGIN+'/api/outlook/callback',scope,state,code_challenge:await hash(verifier),code_challenge_method:'S256',prompt:'select_account'};
+  const params={client_id:env.MS_CLIENT_ID,response_type:'code',redirect_uri:outlookRedirectUri(env,requestOrigin),scope,state,code_challenge:await hash(verifier),code_challenge_method:'S256',prompt:'select_account'};
   if(loginHint)params.login_hint=loginHint;
   url.search=new URLSearchParams(params).toString();
   return url.href;
@@ -49,6 +65,8 @@ async function tokenRequest(env,data) {
   const t=await response.json();return {...t,expires_at:Date.now()+t.expires_in*1000};
 }
 export async function finishOAuth(env,url,session) {
+  const redirectUri=outlookRedirectUri(env,url.origin);
+  if(!redirectUri)throw new Error('请先正确配置独立 Outlook 应用');
   const state=url.searchParams.get('state')||'';
   const row=await env.DB.prepare('DELETE FROM oauth WHERE state=? AND session=? AND user_id=? AND expires>? RETURNING *').bind(state,session.id,session.user_id,Date.now()).first();
   if(!row)throw new Error('登录请求失效，请重试');
@@ -58,7 +76,7 @@ export async function finishOAuth(env,url,session) {
     error.oauthFailure=true;throw error;
   }
   if(!url.searchParams.get('code'))throw new Error('登录请求缺少授权码，请重新连接');
-  const token=await tokenRequest(env,{grant_type:'authorization_code',code:url.searchParams.get('code'),code_verifier:row.verifier,redirect_uri:env.APP_ORIGIN+'/api/outlook/callback'});
+  const token=await tokenRequest(env,{grant_type:'authorization_code',code:url.searchParams.get('code'),code_verifier:row.verifier,redirect_uri:redirectUri});
   const me=await fetch('https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName',{headers:{Authorization:'Bearer '+token.access_token},signal:AbortSignal.timeout(20000)});
   if(!me.ok)throw new Error('无法核对 Outlook 账号');
   const profile=await me.json();
@@ -460,7 +478,7 @@ export async function summarizeLink(env, locale, url){
   try{
     // 抓取页面（只取前 8KB，避免大文件）
     const resp = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CampusCompanion/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CampusCommon/1.0)' },
       signal: AbortSignal.timeout(15000)
     });
     if(!resp.ok) return null;

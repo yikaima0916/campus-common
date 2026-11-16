@@ -22,6 +22,7 @@
   "ai": { "binding": "AI" },
   "vars": {
     "APP_ORIGIN": "https://campus-common.campus-companion.workers.dev",
+    "ALTERNATE_APP_ORIGIN": "https://campus-common.pages.dev",
     "ENABLE_AI": "true",
     "MAIL_AI_DAILY_NEURONS": "3000"
   }

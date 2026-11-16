@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { webcrypto } from 'node:crypto';
 import worker from '../src/worker.js';
+import pages from '../pages/_worker.js';
 import { hash,b64,random,seal,unseal,makePasswordHash } from '../src/security.js';
 import { deliver } from '../src/jobs.js';
 function database(){
@@ -257,6 +258,31 @@ test('each signed-in account can start its own Outlook connection with an email 
   assert.equal((await env.DB.prepare('SELECT user_id FROM oauth WHERE state=?').bind(state).first()).user_id,'second');
 });
 
+test('Pages and Worker addresses use their own registered Outlook callback',async()=>{
+  const original='https://campus.example',alternate='https://campus-common.pages.dev';
+  const env={DB:database(),APP_ORIGIN:original,ALTERNATE_APP_ORIGIN:alternate,MS_CLIENT_ID:'test-client',MS_CLIENT_SECRET:'test-secret',TOKEN_KEY:random()};
+  const token=random();
+  await env.DB.prepare("INSERT INTO users(id,email,password_hash,created) VALUES('user','user@example.com','unused',0)").run();
+  await env.DB.prepare('INSERT INTO sessions(id,expires,user_id) VALUES(?,?,?)').bind(await hash(token),Date.now()+3600000,'user').run();
+  const binding={CAMPUS_APP:{fetch:request=>worker.fetch(request,env)}};
+  const makeRequest=(origin,path)=>new Request(origin+'/api/outlook/'+path,{headers:{Cookie:'campus_session='+token},redirect:'manual'});
+
+  const old=await worker.fetch(makeRequest(original,'start'),env);
+  const next=await pages.fetch(makeRequest(alternate,'start'),binding);
+  assert.equal(old.status,302);
+  assert.equal(next.status,302);
+  assert.equal(new URL(old.headers.get('location')).searchParams.get('redirect_uri'),original+'/api/outlook/callback');
+  const location=new URL(next.headers.get('location'));
+  assert.equal(location.searchParams.get('redirect_uri'),alternate+'/api/outlook/callback');
+  assert.equal((await pages.fetch(makeRequest('https://preview.campus-common.pages.dev','start'),binding)).status,404);
+  assert.equal((await worker.fetch(makeRequest('https://untrusted.example','start'),env)).status,400);
+
+  const state=location.searchParams.get('state');
+  const callback=await pages.fetch(makeRequest(alternate,'callback?error=access_denied&state='+state),binding);
+  assert.match(await callback.text(),/未完成 Microsoft 授权/);
+  assert.equal(await env.DB.prepare('SELECT * FROM oauth WHERE state=?').bind(state).first(),null);
+});
+
 test('Outlook diagnostics reject example placeholders before OAuth starts',async()=>{
   const env={DB:database(),MS_CLIENT_ID:'REPLACE_WITH_YOUR_MICROSOFT_APP_CLIENT_ID',MS_CLIENT_SECRET:'replace-with-secret-value',APP_ORIGIN:'https://your-worker.your-subdomain.workers.dev',TOKEN_KEY:'generated_by_setup_secrets'},origin='https://campus.example',token=random();
   await env.DB.prepare("INSERT INTO users(id,email,password_hash,created) VALUES('user','user@example.com','unused',0)").run();
@@ -490,7 +516,7 @@ test('school sender address is account scoped and saved configuration wins',asyn
 });
 
 test('OAuth provider failure shows a retry page and preserves existing mailbox',async()=>{
- const env={DB:database()},token=random(),origin='https://campus.example';
+ const origin='https://campus.example',env={DB:database(),APP_ORIGIN:origin},token=random();
  await env.DB.prepare("INSERT INTO users(id,email,password_hash,created) VALUES('oauth-user','test@example.com','unused',0)").run();
  const session=await hash(token);
  await env.DB.prepare('INSERT INTO sessions(id,expires,user_id) VALUES(?,?,?)').bind(session,Date.now()+3600000,'oauth-user').run();

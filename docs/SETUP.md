@@ -28,7 +28,7 @@ pnpm exec wrangler deploy --dry-run
 
 ## Cloudflare deployment
 
-1. Create a D1 database with `pnpm exec wrangler d1 create campus-companion`.
+1. For a new deployment, create a D1 database with `pnpm exec wrangler d1 create campus-common`. The existing production Worker continues to use its existing D1 binding.
 2. Copy the returned database name and ID into `wrangler.jsonc`.
 3. Run `pnpm db:remote` to apply all migrations.
 4. Set `APP_ORIGIN` to the final HTTPS Worker URL.

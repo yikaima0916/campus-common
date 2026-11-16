@@ -6,10 +6,11 @@ Campus Common connects a personal Outlook or Hotmail mailbox using delegated Mic
 
 1. In the [Microsoft Entra admin center](https://entra.microsoft.com/), open **App registrations**. Use the app dedicated to Campus Common, or register a new one named **Campus Common**.
 2. Select an account type that supports personal Microsoft accounts. The connector uses the `consumers` authorisation endpoint.
-3. Under **Authentication**, add this exact redirect URI using the **Web** platform:
+3. Under **Authentication**, register the existing Worker callback and the Pages callback as **Web** redirect URIs:
 
    ```text
    https://campus-common.campus-companion.workers.dev/api/outlook/callback
+   https://campus-common.pages.dev/api/outlook/callback
    ```
 
 4. Under **API permissions**, add the delegated Microsoft Graph permissions `User.Read` and `Mail.Read`.
@@ -27,6 +28,8 @@ Open [Cloudflare](https://dash.cloudflare.com/) → **Workers & Pages** → **ca
 | `MS_CLIENT_SECRET` | Secret | Client secret **Value** |
 
 The Worker already has `APP_ORIGIN=https://campus-common.campus-companion.workers.dev` and its own `TOKEN_KEY`. Preserve the key after connections are created because it encrypts their stored OAuth tokens. Keep all secret values in Cloudflare and verify the bindings after future releases. [Cloudflare secrets documentation](https://developers.cloudflare.com/workers/configuration/secrets/)
+
+The `campus-common` Pages project serves the same Worker through a service binding named `CAMPUS_APP`. Upload the `pages` directory as the Pages deployment and redeploy after setting the binding. `ALTERNATE_APP_ORIGIN` enables the second OAuth callback. Both addresses use the same D1 accounts and stored Outlook connections. Users sign in on the new address to get its browser session.
 
 ## 3. Verify
 

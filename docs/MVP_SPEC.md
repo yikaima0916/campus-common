@@ -1,8 +1,8 @@
-# Campus Companion MVP v1
+# Campus Common MVP v1
 
 ## Product promise
 
-Campus Companion helps a student group confirm who does what, see the real deadlines, and find a shared meeting time. Email, translation, and AI support this workflow; none is required to complete it.
+Campus Common helps a student group confirm who does what, see the real deadlines, and find a shared meeting time. Email, translation, and AI support this workflow; none is required to complete it.
 
 ## Demonstration journey
 
