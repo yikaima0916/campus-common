@@ -1,65 +1,45 @@
-# Campus Companion
+<p align="center">
+  <img src="public/icon-192.png" alt="Campus Common logo" width="88">
+</p>
 
-A mobile-friendly campus planner built as a progressive web app. It provides individual accounts, task reminders, school-mail summaries, Outlook connection support, and English, Simplified Chinese, and Traditional Chinese interfaces.
+<h1 align="center">Campus Common</h1>
 
-## What is included
+<p align="center"><strong>One place for academic support and campus life.</strong></p>
 
-- Email and password registration, sign-in, sign-out, password recovery, and per-account security questions
-- Private data isolation for tasks, mail summaries, notification settings, sessions, and Outlook connections
-- Tasks with due dates, editing, completed-task deletion, task-specific reminders, calendar export, and notification channels
-- Groups with evidence-backed responsibility review, assignee acceptance, shared progress, availability collection, meeting voting, and announcements
-- Mail summaries with translated labels, original-mail links, per-user deletion, reviewable suggestions, and configurable focus terms
-- Per-user daily digest and late-update preferences, saved digest history, and notification delivery
-- Outlook OAuth connection and a separate iPhone Shortcut mail-ingestion endpoint
-- A PWA interface with iPhone installation and Web Push support
+<p align="center">
+  <a href="https://campus-common.campus-companion.workers.dev/">Open Campus Common</a> ·
+  <a href="#current-workspace">Current workspace</a> ·
+  <a href="#roadmap">Roadmap</a>
+</p>
 
-## Technology
+University information is spread across email, course platforms and campus notices. Campus Common brings the information students need to act on into one workspace. It starts with Chinese-speaking students who read English-language university notices, helping them understand what matters, find a deadline and decide what to do next.
 
-Cloudflare Workers, D1, Cron Triggers, Static Assets, optional Workers AI, Microsoft Graph OAuth, Web Push (VAPID), vanilla HTML/CSS/JavaScript, Node.js, pnpm, and Wrangler.
+## Current workspace
 
-## Start here
+| Feature | What students can do |
+| --- | --- |
+| Campus email | Connect Outlook, bring university email into the workspace, and open the original message to verify details. |
+| Chinese-first reading | Use Simplified or Traditional Chinese. When AI is configured and available, read Chinese key points or a translation alongside the English original. |
+| Email to task | Review a suggested action and its deadline against the source. The student decides whether to add it to their task list. |
+| Tasks and reminders | Organise personal tasks, set deadlines and reminders, and export dates to a calendar. |
+| Group work | Coordinate assignments, responsibilities, availability and meeting decisions with classmates. |
+| Daily digest | Review grouped campus updates and follow-ups. Scheduled delivery depends on the deployment configuration. |
 
-1. Read [the setup guide](docs/SETUP.md).
-2. Read [the team handoff](docs/TEAM_HANDOFF.md) before changing mail, security, or scheduled jobs.
-3. Read [the Outlook setup guide](docs/OUTLOOK_SETUP.md) before enabling real mailbox access.
-4. Copy `wrangler.example.jsonc` to `wrangler.jsonc` and add your own D1 database details.
-5. Install dependencies, create the private local secrets file, apply the local database migrations, and start Wrangler.
+## Roadmap
 
-```sh
-pnpm install --frozen-lockfile
-cp wrangler.example.jsonc wrangler.jsonc
-node setup-secrets.mjs
-pnpm db:local
-pnpm dev
-```
+| Area | Planned |
+| --- | --- |
+| Academic Hub | Course and lecturer reviews, peer notes, and semester and degree planning. |
+| Campus Life Hub | Event and ILP discovery, finding teammates, student communities, and exchange of textbooks and dorm items. |
+| University integrations | Explore Moodle and degree-audit integration, subject to university approval and student consent. |
 
-Before opening a pull request, run both checks:
+As we develop the workspace, we want to test whether students can find deadlines faster, identify the right next step more accurately, and spend less effort reading university notices.
 
-```sh
-pnpm test
-pnpm exec wrangler deploy --dry-run --config wrangler.example.jsonc
-```
+## Development
 
-In PowerShell, use `Copy-Item wrangler.example.jsonc wrangler.jsonc` instead of `cp` if the `cp` alias is unavailable.
+Campus Common is a progressive web app built with JavaScript, Cloudflare Workers and D1. Microsoft Graph supports Outlook connections. Workers AI and Web Push are configurable.
 
-## Repository safety
+- [Local setup](docs/SETUP.md)
+- [Outlook integration](docs/OUTLOOK_SETUP.md)
 
-This repository deliberately contains no production database records, passwords, tokens, OAuth client secrets, VAPID keys, personal email addresses, Cloudflare login logs, or deployment credentials. Do not commit `.dev.vars`, local Wrangler files, logs, or secrets.
-
-## Project structure
-
-```text
-public/       PWA interface, styles, assets, and browser-side behavior
-src/          Worker routes, security, mail processing, reminders, and domain logic
-migrations/   D1 schema migrations
-test/         Node test suite
-docs/         Team handoff and setup instructions
-```
-
-## Collaboration
-
-Create a branch for each change, run `pnpm test`, and submit a pull request with screenshots for interface changes. Use a personal test account and sample mail only. Do not connect a shared production inbox while developing.
-
-## License
-
-Private course and team project. Add a license before publishing this repository publicly.
+Run `pnpm test` before submitting a change. Use a test account and sample messages during development, and keep student records and credentials out of the repository.
