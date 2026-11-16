@@ -280,14 +280,14 @@ async function prepareBriefs(rows,onUpdate,isCurrent,opts={}){
   let warned=false;
   const worker=async()=>{
     while(batches.length&&isCurrent()){
-      const batch=batches.shift(),ids=batch.map(m=>m.id),key=locale+':'+ids.join('|');
+      const batch=batches.shift(),ids=batch.map(m=>m.id),key=locale+':'+String(opts.preview===true)+':'+ids.join('|');
       if(opts.live){batch.forEach(m=>{m.briefLoading=true;m.briefError=false;});await onUpdate();}
       try{
-        if(!briefRequests.has(key))briefRequests.set(key,Promise.race([api('mail/briefs',{method:'POST',body:{ids}}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),60000))]));
+        if(!briefRequests.has(key))briefRequests.set(key,Promise.race([api('mail/briefs',{method:'POST',body:{ids,preview:opts.preview===true}}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),60000))]));
         const result=await briefRequests.get(key),results=result.results||[];
         for(const row of batch){const item=results.find(r=>r.id===row.id);row.briefLoading=false;if(item?.brief)row.brief=item.brief;row.briefError=!item||!!item.error;}
         if(results.length&&results.every(r=>r.error||r.brief?.fallback)){
-          if(!warned){warned=true;toast(local('暂时无法生成详细摘要，已显示邮件速览。','暫時無法產生詳細摘要，已顯示郵件速覽。','Detailed summary is temporarily unavailable; showing a quick view.'));}
+          if(!warned&&!opts.preview){warned=true;toast(local('暂时无法生成详细摘要，已显示邮件速览。','暫時無法產生詳細摘要，已顯示郵件速覽。','Detailed summary is temporarily unavailable; showing a quick view.'));}
           batches.length=0; // do not hammer the service when everything fails
         }
       }catch{for(const row of batch){row.briefLoading=false;row.briefError=true;}batches.length=0;}
@@ -560,7 +560,7 @@ async function loadMail(opts={}){
     void prepareBriefs(messages,()=>{
       for(const card of $$('#mail-list .mail-card[data-open-mail]')){const row=messages.find(m=>encodeURIComponent(m.id)===card.dataset.openMail);if(row)card.outerHTML=mailCard(row);}
       bindMailList($('#mail-list'));
-    },()=>locale===activeLocale&&!$('#mail-view').classList.contains('hidden'));
+    },()=>locale===activeLocale&&!$('#mail-view').classList.contains('hidden'),{preview:true});
 
     const focusId=new URLSearchParams(location.search).get('message');
 
@@ -766,7 +766,7 @@ async function loadDigests(opts={}){
     renderDigests(false);
     if(opts.generate!==false){
       const activeLocale=locale;
-      void prepareBriefs(digestData.flatMap(d=>d.items||[]),()=>renderDigests(false),()=>locale===activeLocale&&!$('#digests-view').classList.contains('hidden'),{live:true,concurrency:2});
+      void prepareBriefs(digestData.flatMap(d=>d.items||[]),()=>renderDigests(false),()=>locale===activeLocale&&!$('#digests-view').classList.contains('hidden'),{live:true,concurrency:2,preview:true});
     }
   }catch(e){$('#global-error').textContent=e.message;}finally{finishLoading();}
 }
