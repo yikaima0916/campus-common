@@ -54,6 +54,10 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 
 Use this format: Completed changes / Files modified / Commit SHA and branch / Deployed? (worker, URL) / Verification run vs not run / Known issues / Next steps.
 
+- **2026-11-17 — English by default and one interface language per device.**
+  - First visit is English. The language chosen on this device (homepage EN / 简 / 繁, login or Settings) now wins after sign-in and is copied to the account, instead of the account's stored default (`zh-CN`) overriding it. The date label re-renders on every language change. The page stays hidden until the first language is applied (4-second fallback), so the static Chinese HTML no longer flashes. The Change photo page is translated in all three languages and redesigned with equal-width actions above the tab bar.
+  - Files: `public/app.js`, `public/index.html`, `public/theme-init.js`, `public/home.css`. Branch `main`. Local suite 108/108. Local `wrangler dev` with a 390 px mobile Chrome check: no visible Chinese on the fresh homepage, Tasks or Settings in English; an account stored as `zh-CN` reloaded in English and was synced to `en`; a homepage 繁 choice carried into Settings and the photo page.
+  - Known trade-off: a new device starts in English even if the account was set to Chinese elsewhere; choosing a language there updates the account.
 - **2026-11-16 — Reserve mail AI quota for opened messages.**
   - The Campus Common mailbox successfully synced again. Opening an existing email reached the live AI quota warning. Keep the existing daily cap. Background mail and digest previews now share at most one third of it, leaving the rest available for explicitly opened mail, including full translation.
   - Files: `src/mail-ai.js`, `src/mail-briefs.js`, `src/worker.js`, `public/app.js`, `test/mail-ai-budget.test.js`. Branch: `fix/i4i-mail-ai-budget`. The SQLite quota regression check passed. Production deployment and post-reset verification are pending.

@@ -10,12 +10,13 @@ const I18N={
   'zh-TW':{appName:'Campus Common',appDescription:'學校郵件、作業與日常待辦，在一個清單裏。',clearDue:'清除截止時間',mainNav:'主導航',taskStatus:'任務狀態',remindBefore:'截止前提醒',exactReminders:'指定提醒時間（香港）',remindWindow:'允許提醒的時段（香港時間）',remindChannel:'提醒方式',mailZh:'中文',close:'關閉',mailSearch:'搜尋郵件',mailSearchPlaceholder:'搜尋郵件…',addAlias:'新增英文名寫法',aliasSuggestionsLabel:'郵件裏識別到的相似寫法，點擊即可新增：',aliasRemove:'移除這個寫法',aliasPlaceholder:'輸入英文名寫法',aliasZhPlaceholder:'輸入對應中文名',heroTitle:'Campus Common',heroSubtitle:'待辦、郵件和小組任務',login:'登入',register:'註冊',loginEmail:'登入電郵',registerEmail:'註冊電郵',password:'登入密碼',setPassword:'設定密碼（至少 12 個字元）',securityQuestion:'自訂密保問題',securityAnswer:'密保答案',openList:'開啟我的清單',forgot:'忘記密碼？',createAccount:'建立帳號',standaloneLogin:'獨立登入 · 不需要開啟 ChatGPT',tasks:'我的待辦',mail:'郵件',settings:'設定',personalAccount:'個人帳號',hkTime:'香港時間 · UTC+8',tasksEyebrow:'留出時間，做好重要的事',mailEyebrow:'先看重要的，再看感興趣的',settingsEyebrow:'管理你的帳號與連接',mailNotice:'每日 20:00 日報 · 00:00 按需補充晚間新郵件。原始發件人會單獨標出。',profile:'個人空間',logout:'登出',save:'儲存',language:'介面語言',nickname:'暱稱',avatar:'頭像',linkedEmail:'關聯電郵',reminderDefaults:'預設提醒設定',offsets:'提前提醒分鐘數（逗號分隔）',repeat:'截止後重複間隔（分鐘）',start:'提醒開始時間',end:'提醒結束時間',defaultNickname:'用戶'},
   en:{appName:'Campus Common',appDescription:'School email, assignments, and daily to-dos in one place.',clearDue:'Clear deadline',mainNav:'Main navigation',taskStatus:'Task status',remindBefore:'Remind before due',exactReminders:'Specific reminder times (Hong Kong)',remindWindow:'Allowed reminder window (Hong Kong time)',remindChannel:'Reminder channel',mailZh:'Chinese',close:'Close',mailSearch:'Search mail',mailSearchPlaceholder:'Search mail…',addAlias:'Add name variant',aliasSuggestionsLabel:'Similar spellings found in your mail — click to add:',aliasRemove:'Remove this variant',aliasPlaceholder:'Enter name as written',aliasZhPlaceholder:'Enter corresponding Chinese name',heroTitle:'Campus Common',heroSubtitle:'Tasks, mail and group projects',login:'Sign in',register:'Create account',loginEmail:'Email',registerEmail:'Email',password:'Password',setPassword:'Password (12 characters minimum)',securityQuestion:'Security question',securityAnswer:'Security answer',openList:'Open my list',forgot:'Forgot password?',createAccount:'Create account',standaloneLogin:'Independent sign-in · no ChatGPT required',tasks:'My tasks',mail:'Mail',settings:'Settings',personalAccount:'Personal account',hkTime:'Hong Kong time · UTC+8',tasksEyebrow:'Make time for what matters',mailEyebrow:'Important first, then interesting',settingsEyebrow:'Manage your account and connections',mailNotice:'Daily digest at 20:00 · evening additions at 00:00. Original senders are shown separately.',profile:'Personal space',logout:'Sign out',save:'Save',language:'Interface language',nickname:'Nickname',avatar:'Avatar',linkedEmail:'Linked email',reminderDefaults:'Default reminders',offsets:'Reminder offsets in minutes (comma separated)',repeat:'Repeat interval after due time (minutes)',start:'Reminder start time',end:'Reminder end time',defaultNickname:'User'}
 };
-let locale='zh-CN';
+let locale='en';
 let reminderDefaults={offsets:[4320,1440,120,30],repeat:1440,start:'08:00',end:'23:00'};
 function detectLocale(){const saved=localStorage.getItem('campus-locale');if(saved&&I18N[saved])return saved;return 'en';}
-function applyLocale(next){locale=I18N[next]?next:'zh-CN';document.documentElement.lang=locale;document.title=I18N[locale].appName;const metaDescription=$('meta[name=description]');if(metaDescription&&I18N[locale].appDescription)metaDescription.content=I18N[locale].appDescription;for(const el of $$('[data-i18n]')){const value=I18N[locale][el.dataset.i18n];if(value!==undefined)el.innerHTML=value;}for(const el of $$('[data-i18n-placeholder]')){const value=I18N[locale][el.dataset.i18nPlaceholder];if(value!==undefined)el.placeholder=value;}for(const el of $$('[data-i18n-aria]')){const value=I18N[locale][el.dataset.i18nAria];if(value!==undefined)el.setAttribute('aria-label',value);}const staticText={'.login h1':'heroTitle','.login>p':'heroSubtitle','.private':'personalAccount','.tasks-eyebrow':'tasksEyebrow'};for(const [selector,key] of Object.entries(staticText)){const el=$(selector),value=I18N[locale][key];if(el&&value!==undefined)el.innerHTML=value;}const logoutButton=$('#logout');if(logoutButton)logoutButton.setAttribute('aria-label',tx('logout'));translateTextNodes();updateManifestLocale();}
+function updateDateLabel(){const el=document.getElementById('date-label');if(el)el.textContent=new Date().toLocaleDateString(dateLocale(),{timeZone:'Asia/Hong_Kong',year:'numeric',month:'long',day:'numeric',weekday:'long'});}
+function applyLocale(next){locale=I18N[next]?next:'en';document.documentElement.lang=locale;document.title=I18N[locale].appName;const metaDescription=$('meta[name=description]');if(metaDescription&&I18N[locale].appDescription)metaDescription.content=I18N[locale].appDescription;for(const el of $$('[data-i18n]')){const value=I18N[locale][el.dataset.i18n];if(value!==undefined)el.innerHTML=value;}for(const el of $$('[data-i18n-placeholder]')){const value=I18N[locale][el.dataset.i18nPlaceholder];if(value!==undefined)el.placeholder=value;}for(const el of $$('[data-i18n-aria]')){const value=I18N[locale][el.dataset.i18nAria];if(value!==undefined)el.setAttribute('aria-label',value);}const staticText={'.login h1':'heroTitle','.login>p':'heroSubtitle','.private':'personalAccount','.tasks-eyebrow':'tasksEyebrow'};for(const [selector,key] of Object.entries(staticText)){const el=$(selector),value=I18N[locale][key];if(el&&value!==undefined)el.innerHTML=value;}const logoutButton=$('#logout');if(logoutButton)logoutButton.setAttribute('aria-label',tx('logout'));translateTextNodes();updateDateLabel();updateManifestLocale();document.documentElement.classList.remove('i18n-pending');}
 function updateManifestLocale(){const link=$('link[rel=manifest]');if(!link)return;if(!link.dataset.src)link.dataset.src=link.href;fetch(link.dataset.src).then(response=>response.ok?response.json():null).then(manifest=>{if(!manifest)return;manifest.name=I18N[locale].appName;manifest.short_name=I18N[locale].appName;manifest.lang=locale;if(I18N[locale].appDescription)manifest.description=I18N[locale].appDescription;link.href=URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'}));}).catch(()=>{});}
-const tx=key=>I18N[locale]?.[key]||I18N['zh-CN'][key]||key;
+const tx=key=>I18N[locale]?.[key]||I18N.en[key]||I18N['zh-CN'][key]||key;
 
 Object.assign(I18N['zh-CN'],{
   originalSender:'原始发件人：',source:'来源：',viewOriginal:'查看原邮件 ↗',deleteMail:'删除邮件记录',confirmDeleteMail:'确定删除这条邮件摘要吗？原 Outlook 邮件不会被删除。',mailDeleted:'已删除邮件摘要',mailEmptyTitle:'邮件摘要会在这里汇合',mailEmptyText:'连接邮箱 后，学校转发邮件会自动进入这里。成功提交回执和纯宗教内容会自动略过。',
@@ -1102,7 +1103,7 @@ function wireMailDetail(){
   });
 }
 async function restorePush(){try{if(!('Notification'in window)||Notification.permission!=='granted'||!('serviceWorker'in navigator))return;const registration=await navigator.serviceWorker.register('/sw.js');const sub=await registration.pushManager.getSubscription();if(sub)await api('subscriptions',{method:'POST',body:sub.toJSON()});}catch(error){console.warn('Notification subscription refresh failed',error);}}
-async function boot(){booting=true;wireMailDetail();wireMailSearch();try{await api('session/tab',{method:'POST',body:{}});status=await api('status');restorePush();const profile=await api('profile');reminderDefaults=profile.reminders||reminderDefaults;applyLocale(status.account.locale||localStorage.getItem('campus-locale')||'zh-CN');localStorage.setItem('campus-locale',locale);signedIn=true;$('#login').classList.add('hidden');ensureDock();$('#account-label').textContent=accountLabel(status.account);setAvatar(status.account.avatar,accountLabel(status.account).slice(0,1).toUpperCase());$('#date-label').textContent=new Date().toLocaleDateString(dateLocale(),{timeZone:'Asia/Hong_Kong',year:'numeric',month:'long',day:'numeric',weekday:'long'});await loadTasks();routeAfterBoot();}catch(e){if(!$('#app').classList.contains('hidden'))$('#global-error').textContent=e.message;else{if(!signedIn&&(workspaceRoute(location.search)||pendingTarget))showLogin();else showPublic(publicRoute());if(signedIn)toast(e.message);}}finally{booting=false;}}
+async function boot(){booting=true;wireMailDetail();wireMailSearch();try{await api('session/tab',{method:'POST',body:{}});status=await api('status');restorePush();const profile=await api('profile');reminderDefaults=profile.reminders||reminderDefaults;applyLocale(detectLocale());localStorage.setItem('campus-locale',locale);if(status.account.locale!==locale){try{await api('profile',{method:'PATCH',body:{locale}});status.account.locale=locale;}catch(error){console.warn('Locale sync failed',error);}}signedIn=true;$('#login').classList.add('hidden');ensureDock();$('#account-label').textContent=accountLabel(status.account);setAvatar(status.account.avatar,accountLabel(status.account).slice(0,1).toUpperCase());updateDateLabel();await loadTasks();routeAfterBoot();}catch(e){if(!$('#app').classList.contains('hidden'))$('#global-error').textContent=e.message;else{if(!signedIn&&(workspaceRoute(location.search)||pendingTarget))showLogin();else showPublic(publicRoute());if(signedIn)toast(e.message);}}finally{booting=false;}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!$('#app').classList.contains('hidden'))loadTasks().catch(e=>toast(e.message));});
 
 function announcementText(item){if(item.kind==='meeting-change')return {title:item.title,body:item.body==='cancel'?local('会议已取消','會議已取消','Meeting cancelled'):local('会议已改期，请重新提交可用时间','會議已改期，請重新提交可用時間','Meeting rescheduled. Submit availability again.')};if(item.kind==='meeting'){const poll=groupState.meetingPolls.find(p=>p.id===item.source_id);if(poll)return {title:local('会议时间已确认：','會議時間已確認：','Meeting confirmed: ')+poll.name,body:fmt(poll.confirmed_start)+' · '+poll.duration_minutes+' '+local('分钟','分鐘','minutes')};}return item;}
@@ -1238,7 +1239,7 @@ boot();
 // Profile and language settings override the legacy settings renderer above.
 async function loadSettingsProfile(){
   try{
-    status=await api('status');const p=await api('profile');const mailPrefs=p.mailPreferences||{focusTerms:[],daily:{enabled:true,time:'20:00'},late:{enabled:true,time:'00:00'},translateZh:true,englishSummary:false};applyLocale(p.locale);localStorage.setItem('campus-locale',p.locale);
+    status=await api('status');const p=await api('profile');const mailPrefs=p.mailPreferences||{focusTerms:[],daily:{enabled:true,time:'20:00'},late:{enabled:true,time:'00:00'},translateZh:true,englishSummary:false};p.locale=locale;
     const outlook=`<div class="setting-card"><h2>${tx('outlookMail')}</h2><p class="status">${status.outlook?esc(translateCopy(status.mailStatus))+(status.lastSync?' · '+esc(fmt(status.lastSync)):''):esc(tx('outlookNotConnected'))}</p>${status.outlook?`<p class="connection-detail">${esc(tx('connectedAs'))} ${esc(status.outlookEmail)}</p><p><button id="sync-outlook" type="button">${tx('syncNow')}</button> <a href="/api/outlook/start">${tx('reconnect')} ↗</a></p><p><button id="disconnect-outlook" type="button" class="danger-text">${tx('disconnectOutlook')}</button></p><small>${esc(tx('disconnectOutlookHint'))}</small>`:`<p class="connection-detail">${esc(tx('connectOutlookHint'))}</p>`}${status.outlookConfigured?(status.outlook?'':`<form id="outlook-connect-form" class="connection-form"><label>${tx('outlookEmail')}<input name="email" type="email" autocomplete="email" required></label><button class="primary" type="submit">${tx('connectOutlook')} ↗</button></form>`):`<div class="setup-block"><p class="error">${esc(tx('outlookSetupNeeded'))}</p><p>${esc(tx('outlookMissing'))} <code>${esc((status.outlookMissingConfig||[]).join(', '))}</code></p><small>${esc(tx('outlookSetupHelp'))}</small></div>`}${status.outlook?`<small>${esc(tx('syncSchoolOnly'))}</small>`:''}</div>`;
     const zhUi=p.locale==='zh-CN'||p.locale==='zh-TW';
     const aliasRows=(p.nameAliases||[]).map((a,i)=>aliasRowHTML(a,i)).join('');
@@ -1251,7 +1252,7 @@ async function loadSettingsProfile(){
       <div class="qq-profile-hero">
         <button type="button" class="qq-avatar-btn" id="qq-avatar-btn" aria-label="${esc(tx('avatar'))}">
           ${hasAvatar?`<img src="${esc(p.avatar)}" alt="">`:`<span class="qq-avatar-default" aria-hidden="true"><svg viewBox="0 0 24 24" width="44" height="44" fill="currentColor"><path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12zm0 2.2c-3.3 0-9.8 1.6-9.8 5v2.6h19.6V19.2c0-3.4-6.5-5-9.8-5z"/></svg></span>`}
-          <span class="qq-avatar-edit-hint" aria-hidden="true">📷</span>
+          <span class="qq-avatar-edit-hint" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.4-2h4.8l1.4 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg></span>
         </button>
         <div class="qq-profile-info">
           <div class="qq-name-row">
@@ -1274,25 +1275,22 @@ async function loadSettingsProfile(){
         <div class="qq-form-actions"><button class="primary" type="submit">${tx('save')}</button></div>
       </form>
     </div>
-    <div id="avatar-page" class="avatar-page" hidden>
+    <div id="avatar-page" class="avatar-page" hidden role="dialog" aria-modal="true" aria-labelledby="avatar-page-title">
       <div class="avatar-page-inner">
         <div class="avatar-page-header">
-          <button type="button" class="avatar-page-back" id="avatar-page-back" aria-label="Back">←</button>
-          <h3>更换头像</h3>
-          <span class="avatar-page-spacer"></span>
+          <button type="button" class="avatar-page-back" id="avatar-page-back" aria-label="${esc(local('返回','返回','Back'))}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 5.5-6.5 6.5 6.5 6.5"/></svg></button>
+          <h3 id="avatar-page-title">${esc(local('更换头像','更換頭像','Change photo'))}</h3>
+          <span class="avatar-page-spacer" aria-hidden="true"></span>
         </div>
         <div class="avatar-page-preview">
-          <div class="avatar-page-img-wrap" id="avatar-page-img-wrap">
-            <!-- preview inserted by JS -->
-          </div>
+          <div class="avatar-page-img-wrap" id="avatar-page-img-wrap"></div>
         </div>
         <div class="avatar-page-actions">
-          <label class="avatar-page-upload-btn">选择图片<input type="file" id="avatar-page-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden></label>
-          <button type="button" id="avatar-page-remove" class="avatar-page-remove">移除头像</button>
-        </div>
-        <p class="avatar-page-hint">PNG、JPEG、WEBP 或 GIF</p>
-        <div class="avatar-page-footer">
-          <button type="button" class="primary avatar-page-done" id="avatar-page-done">完成</button>
+          <input type="file" id="avatar-page-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          <button type="button" id="avatar-page-choose" class="avatar-action avatar-action-choose"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="3.5"/><circle cx="9" cy="10" r="1.8"/><path d="m20.5 16-4.8-4.8L7 19.5"/></svg><span>${esc(local('选择图片','選擇圖片','Choose photo'))}</span></button>
+          <button type="button" id="avatar-page-remove" class="avatar-action avatar-action-remove"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M6.5 7l.8 11.2A2 2 0 0 0 9.3 20h5.4a2 2 0 0 0 2-1.8L17.5 7M9.5 7V5.5a1.5 1.5 0 0 1 1.5-1.5h2a1.5 1.5 0 0 1 1.5 1.5V7"/></svg><span>${esc(local('移除头像','移除頭像','Remove photo'))}</span></button>
+          <p class="avatar-page-hint" data-user-content>${esc(local('支持 PNG、JPEG、WEBP 或 GIF','支援 PNG、JPEG、WEBP 或 GIF','PNG, JPEG, WEBP or GIF'))}</p>
+          <button type="button" class="primary avatar-action avatar-page-done" id="avatar-page-done">${esc(local('完成','完成','Done'))}</button>
         </div>
       </div>
     </div>
@@ -1366,6 +1364,7 @@ async function loadSettingsProfile(){
         reader.onload=()=>setPreview(reader.result);
         reader.readAsDataURL(file);
       };
+      $('#avatar-page-choose').onclick=()=>qqFile.click();
       $('#avatar-page-remove').onclick=()=>{setPreview('');qqFile.value='';};
     }
     // ---------- 名字内联编辑：点击笔变成文本框（流畅高级） ----------
