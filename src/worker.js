@@ -250,11 +250,12 @@ async function routes(request,env,ctx){
   }
   if(path==='/api/mail/briefs'&&method==='POST'){
     const data=await body(request),ids=[...new Set(Array.isArray(data.ids)?data.ids:[])].filter(id=>typeof id==='string').slice(0,2);
+    const preview=data.preview===true;
     const profile=await env.DB.prepare('SELECT locale FROM users WHERE id=?').bind(account.user_id).first();
     const results=[];
     for(const id of ids){
       if(!await env.DB.prepare('SELECT id FROM messages WHERE id=? AND user_id=?').bind(id,account.user_id).first())continue;
-      try{results.push({id,brief:await generateBrief(env,account.user_id,profile?.locale||'zh-CN',id)})}catch(error){console.warn('brief-failure',error.name, /Ungrounded|supported|language|JSON|Original|AI summary/.test(error.message)?error.message.slice(0,100):'generation failed');results.push({id,error:true})}
+      try{results.push({id,brief:await generateBrief(env,account.user_id,profile?.locale||'zh-CN',id,undefined,{preview})})}catch(error){console.warn('brief-failure',error.name, /Ungrounded|supported|language|JSON|Original|AI summary/.test(error.message)?error.message.slice(0,100):'generation failed');results.push({id,error:true})}
     }
     return json({results});
   }

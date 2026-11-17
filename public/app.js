@@ -280,14 +280,14 @@ async function prepareBriefs(rows,onUpdate,isCurrent,opts={}){
   let warned=false;
   const worker=async()=>{
     while(batches.length&&isCurrent()){
-      const batch=batches.shift(),ids=batch.map(m=>m.id),key=locale+':'+ids.join('|');
+      const batch=batches.shift(),ids=batch.map(m=>m.id),key=locale+':'+String(opts.preview===true)+':'+ids.join('|');
       if(opts.live){batch.forEach(m=>{m.briefLoading=true;m.briefError=false;});await onUpdate();}
       try{
-        if(!briefRequests.has(key))briefRequests.set(key,Promise.race([api('mail/briefs',{method:'POST',body:{ids}}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),60000))]));
+        if(!briefRequests.has(key))briefRequests.set(key,Promise.race([api('mail/briefs',{method:'POST',body:{ids,preview:opts.preview===true}}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),60000))]));
         const result=await briefRequests.get(key),results=result.results||[];
         for(const row of batch){const item=results.find(r=>r.id===row.id);row.briefLoading=false;if(item?.brief)row.brief=item.brief;row.briefError=!item||!!item.error;}
         if(results.length&&results.every(r=>r.error||r.brief?.fallback)){
-          if(!warned){warned=true;toast(local('暂时无法生成详细摘要，已显示邮件速览。','暫時無法產生詳細摘要，已顯示郵件速覽。','Detailed summary is temporarily unavailable; showing a quick view.'));}
+          if(!warned&&!opts.preview){warned=true;toast(local('暂时无法生成详细摘要，已显示邮件速览。','暫時無法產生詳細摘要，已顯示郵件速覽。','Detailed summary is temporarily unavailable; showing a quick view.'));}
           batches.length=0; // do not hammer the service when everything fails
         }
       }catch{for(const row of batch){row.briefLoading=false;row.briefError=true;}batches.length=0;}
@@ -308,7 +308,8 @@ function mailCard(m){
   const safe=(value,fallback)=>english&&containsCjk(value)?fallback:value;
   const subject=safe(String(m.subject||'').replace(/^(?:(?:fw|fwd|re)\s*:\s*)+/i,''),'Email summary unavailable');
   const sender=safe(m.sender,'Sender unavailable'),origin=safe(m.origin,'Source not identified');
-  return `<article class="mail-card" data-open-mail="${encodeURIComponent(m.id)}" tabindex="0" role="button"><div class="mail-card-head"><div class="meta"><span class="badge ${m.category===1?'high':''}">${esc(safe(brief?.topic,'Email'))||esc(local('待整理','待整理','Pending summary'))}</span><span>${esc(fmt(m.received))}</span></div><button class="icon-delete" data-delete-mail="${encodeURIComponent(m.id)}" aria-label="${esc(tx('deleteMail'))}">${esc(tx('delete'))}</button></div><h2>${esc(brief?.title||subject)}</h2><div class="sender">${esc(tx('originalSender'))} ${esc(sender)}<br>${esc(tx('source'))} ${esc(origin)}</div>${brief?briefContent({...m,brief}):briefFallback({...m,brief:null,summary:safe(m.summary,'')})}</article>`;
+  const topic=(!brief?.fallback&&safe(brief?.topic,''))||tx(categoryKey(m.category));
+  return `<article class="mail-card" data-open-mail="${encodeURIComponent(m.id)}" tabindex="0" role="button"><div class="mail-card-head"><div class="meta"><span class="badge ${m.category===1?'high':''}">${esc(topic)}</span><span>${esc(fmt(m.received))}</span></div><button class="icon-delete" data-delete-mail="${encodeURIComponent(m.id)}" aria-label="${esc(tx('deleteMail'))}">${esc(tx('delete'))}</button></div><h2>${esc(brief?.title||subject)}</h2><div class="sender">${esc(tx('originalSender'))} ${esc(sender)}<br>${esc(tx('source'))} ${esc(origin)}</div>${brief?briefContent({...m,brief}):briefFallback({...m,brief:null,summary:safe(m.summary,'')})}</article>`;
 }
 function bindMailList(root){
   root.querySelectorAll('[data-open-mail]').forEach(card=>{
@@ -479,7 +480,7 @@ async function openMailDetail(id,{push=true}={}){
     const safe=(value,fallback)=>englishUi&&containsCjk(value)?fallback:value;
     const subject=String(detail.english?.subject||display.subject||'').replace(/^(?:(?:fw|fwd|re)\s*:\s*)+/i,'');
     $('#mail-detail-title').textContent=englishBrief?.title||safe(subject,'Original email');
-    $('#mail-detail-meta').innerHTML=`<span class="badge">${esc(safe(englishBrief?.topic||tx(categoryKey(detail.category)),'Email'))}</span><span>${esc(safe(display.sender,'Sender unavailable'))}</span><span>${esc(safe(display.origin,'Source not identified'))}</span><time>${esc(fmt(detail.received))}</time>`;
+    $('#mail-detail-meta').innerHTML=`<span class="badge">${esc(safe(!display.brief?.fallback&&display.brief?.topic,'')||tx(categoryKey(detail.category)))}</span><span>${esc(safe(display.sender,'Sender unavailable'))}</span><span>${esc(safe(display.origin,'Source not identified'))}</span><time>${esc(fmt(detail.received))}</time>`;
     const zhPane=$('#mail-detail-zh'),enPane=$('#mail-detail-en');
     zhPane.innerHTML=display.brief?briefContent(display):'';
     const original=renderMailBody(detail.english||{});
@@ -560,7 +561,7 @@ async function loadMail(opts={}){
     void prepareBriefs(messages,()=>{
       for(const card of $$('#mail-list .mail-card[data-open-mail]')){const row=messages.find(m=>encodeURIComponent(m.id)===card.dataset.openMail);if(row)card.outerHTML=mailCard(row);}
       bindMailList($('#mail-list'));
-    },()=>locale===activeLocale&&!$('#mail-view').classList.contains('hidden'));
+    },()=>locale===activeLocale&&!$('#mail-view').classList.contains('hidden'),{preview:true});
 
     const focusId=new URLSearchParams(location.search).get('message');
 
@@ -766,7 +767,7 @@ async function loadDigests(opts={}){
     renderDigests(false);
     if(opts.generate!==false){
       const activeLocale=locale;
-      void prepareBriefs(digestData.flatMap(d=>d.items||[]),()=>renderDigests(false),()=>locale===activeLocale&&!$('#digests-view').classList.contains('hidden'),{live:true,concurrency:2});
+      void prepareBriefs(digestData.flatMap(d=>d.items||[]),()=>renderDigests(false),()=>locale===activeLocale&&!$('#digests-view').classList.contains('hidden'),{live:true,concurrency:2,preview:true});
     }
   }catch(e){$('#global-error').textContent=e.message;}finally{finishLoading();}
 }

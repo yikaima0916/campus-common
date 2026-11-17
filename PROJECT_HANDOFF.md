@@ -57,6 +57,10 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 
 Use this format: Completed changes / Files modified / Commit SHA and branch / Deployed? (worker, URL) / Verification run vs not run / Known issues / Next steps.
 
+- **2026-11-16 — Reserve mail AI quota for opened messages.**
+  - The competition mailbox successfully synced again. Opening an existing email reached the live AI quota warning. Keep the existing daily cap. Background mail and digest previews now share at most one third of it, leaving the rest available for explicitly opened mail, including full translation.
+  - Files: `src/mail-ai.js`, `src/mail-briefs.js`, `src/worker.js`, `public/app.js`, `test/mail-ai-budget.test.js`. Branch: `fix/i4i-mail-ai-budget`. The SQLite quota regression check passed. Production deployment and post-reset verification are pending.
+
 - **2026-11-14 — Mail AI repair deployed and verified.**
   - Code commit `2b083d3c4eb4c86b31a0275799073575bcebeb4a` on `fix/i4i-mail-ai`. Deployed Worker `campus-common` version `f2cd6d3b-a582-4ade-a7f7-fa64fecc658b` at 100% under deployment `3a47fa12-70e0-4cdb-bfc0-557984cc073f`. Prior version `11dffc5a-3b71-4238-9e12-a31e4e9c7d7a` is retained at 0% for rollback. Version bindings preserve isolated D1 `2ef415cd-56b9-4f37-9f75-b7f19cbdd968`, Outlook secrets, and Worker-first asset routing. CDS main remained `c0a99c8e876182a9305d7991e8a4f3c84dfad5f7` and its served app.js matched the pre-repair hash.
   - All 105 local tests passed against the release source. All 35 static assets matched the candidate, with index.html served at /. Candidate ran a new real-model Traditional Chinese assignment brief in 10.36 seconds, with source evidence for 24 November 2026 at 11:59 PM HKT. Checked missing-original fallback, receipt exclusion, task and group reads, today's digest and cross-account 404. The earlier candidate produced and cached three translated chunks for the 3,034-character synthetic ILP message. The final candidate read the complete translation and exact original in 2.57 seconds, confirmed the linked deadline, venue, final paragraph and account name, and reused the cache.
