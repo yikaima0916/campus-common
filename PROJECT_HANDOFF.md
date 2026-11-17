@@ -54,6 +54,9 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 
 Use this format: Completed changes / Files modified / Commit SHA and branch / Deployed? (worker, URL) / Verification run vs not run / Known issues / Next steps.
 
+- **2026-11-17 — AI cap 10,000; account pinned; Campus Companion moved out.**
+  - Campus Companion (OOP) now runs in a separate Cloudflare account (Makaii0916@gmail.com's Account) at https://campus-companion.campus-companion-ln.workers.dev. Its original address in this account redirects there with no AI or cron, so this account's 10,000 daily free neurons serve Campus Common only.
+  - `MAIL_AI_DAILY_NEURONS` raised from 3,000 to 10,000 (Worker version `efe38e47`). `wrangler.i4i.jsonc` now pins `account_id` b9f6bf4c… because the deploy login can see several accounts.
 - **2026-11-17 — Mail AI summaries in the list, accurate AI budget, in-app menus.**
   - Cause of missing summaries, topics and translations: the app budget charged the published per-token rate per UTF-8 byte and kept the full `max_tokens` reservation, so each brief counted about 3–4 times its real cost; list previews could use only one third of 3,000 and requested two emails per load. Production showed 912 estimated neurons and a Cloudflare daily-allocation cooldown on 2026-11-16 (the account's 10,000 free neurons are shared with the Campus Companion Worker).
   - `src/mail-ai.js` now reserves by estimated tokens (bytes/3) and refunds the difference using `usage.neurons` reported by Workers AI (verified on the live model: 42+2 tokens = 1.53 neurons). Previews may use 60% of the daily cap; the list prepares up to 8 emails, two requests in parallel. `MAIL_AI_DAILY_NEURONS` unchanged at 3,000.
