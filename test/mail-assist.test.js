@@ -22,3 +22,10 @@ test('forYou keeps only lines without invented numbers',()=>{
   assert.equal(validateBrief({...base,forYou:'Matches your interest in culture.'},source).forYou,'Matches your interest in culture.');
   assert.equal(validateBrief({...base,forYou:'You have 3 credits left.'},source).forYou,'');
 });
+import {dateInSource} from '../src/mail-assist.js';
+test('task dates must appear in the email',()=>{
+  const src='The exhibition is on 18 November 2026 (Wednesday), 11:30 am to 5:00 pm.';
+  assert.equal(dateInSource('2026-11-18T11:30:00+08:00',src),true);
+  assert.equal(dateInSource('2026-11-19T11:30:00+08:00',src),false);
+  assert.equal(dateInSource('2026-12-12T10:30:00+08:00','活動於12月12日舉行'),true);
+});
