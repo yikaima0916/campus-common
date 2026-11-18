@@ -3,7 +3,7 @@ const model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const inputRate = 26668 / 1e6;
 const outputRate = 204805 / 1e6;
 const cooldownKey = 'fulltrans:cooldown';
-const previewBudgetShare = 0.6;
+const previewBudgetShare = 0.75;
 const today = () => new Date().toISOString().slice(0, 10);
 export async function mailAiStatus(env) {
   if (env.ENABLE_AI !== 'true' || !env.AI) return 'disabled';

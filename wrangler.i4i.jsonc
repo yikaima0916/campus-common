@@ -21,6 +21,8 @@
     }
   ],
   "ai": { "binding": "AI" },
+  // Every minute: sync Outlook, prepare AI briefs for new mail, send reminders and digests.
+  "triggers": { "crons": ["* * * * *"] },
   "vars": {
     "APP_ORIGIN": "https://campus-common.campus-companion.workers.dev",
     "ALTERNATE_APP_ORIGIN": "https://campus-common.pages.dev",

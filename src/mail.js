@@ -162,7 +162,7 @@ export async function analyze(env,m,body,nameInfo={rules:[],preferred:''}) {
   const assignment=category===2&&((hasRequest&&assignmentObject)||namedDeadline);
   const short=extractiveSummary(m.subject,stripMailHeaders(cleanBody).slice(0,900));
   return {
-    sender,origin:'来源未确认',category,
+    sender,origin:String(sender||'').replace(/\s*<[^>]*>\s*$/,'').replace(/^"|"$/g,'').trim()||'来源未确认',category,
     summary:applyNameAliases(short||cleanBody.slice(0,650),rules),
     action:assignment?'请核对作业要求与截止时间':category===6?'无需操作':'请查看原邮件确认是否需要处理',
     quality:'规则提取 · 请核对原文',assignment,
@@ -266,7 +266,7 @@ export async function ingestShortcutEmail(env,data,userId) {
   await saveOriginal(env,userId,sourceId,body);
   await saveMailSuggestion(env,userId,sourceId,a);
   await setKV(env,'mail_status','iPhone 自动转交正常');await setKV(env,'mail_last',String(received));
-  return {duplicate:false,category:a.category,suggestion:a.assignment,task:false};
+  return {duplicate:false,id:sourceId,category:a.category,suggestion:a.assignment,task:false};
 }
 export async function schoolAddress(env,userId){
  const saved=await getKV(env,'school_email:'+userId);if(saved)return saved;

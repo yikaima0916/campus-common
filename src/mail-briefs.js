@@ -10,8 +10,10 @@ export const isEnglishBrief=brief=>!!brief&&[brief.title,brief.topic,...(brief.p
 export const cleanSubject=(s='')=>String(s).replace(/^(?:(?:\s*(?:fw|fwd|re|转发|轉寄|回复|回覆)\s*[:：])\s*)+/i,'').trim();
 export const parseBriefResponse=response=>typeof response==='object'&&response!==null?response:JSON.parse(String(response||'').replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
 const compact=s=>String(s||'').normalize('NFKC').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/\s+/g,' ').trim();
-// A brief written for a profile is cached under that profile, so editing "About me" refreshes it.
-const key=async(user,locale,id,profile='')=>`${version}:${user}:${locale}:${await hash(id)}`+(profile?`:p${(await hash(profile)).slice(0,12)}`:'');
+// One saved brief per email and language. It is generated once and reused; About me only
+// shapes the brief when it is first written. Older briefs saved under a profile suffix are still read.
+const key=async(user,locale,id)=>`${version}:${user}:${locale}:${await hash(id)}`;
+const legacyKey=async(user,locale,id,profile)=>profile?`${await key(user,locale,id)}:p${(await hash(profile)).slice(0,12)}`:'';
 // Correct only when the email itself identifies Lingnan; never rewrite evidence.
 export function correctLingnanBrief(brief,locale,context=''){
  if(!brief||!String(locale).startsWith('zh'))return brief;
@@ -23,7 +25,8 @@ export function correctLingnanBrief(brief,locale,context=''){
 
 export async function readBrief(env,user,locale,id,sourceRow=null,about){try{
  if(about===undefined)about=await readerProfile(env,user);
- const brief=JSON.parse(await getKV(env,await key(user,locale,id,about))||'null');
+ let brief=JSON.parse(await getKV(env,await key(user,locale,id))||'null');
+ if(!brief&&about){const old=await legacyKey(user,locale,id,about);if(old)brief=JSON.parse(await getKV(env,old)||'null');}
  if(!brief||brief.fallback)return null;
  if(locale==='en'&&!isEnglishBrief(brief))return null;
  if(!locale.startsWith('zh'))return brief;
@@ -88,10 +91,22 @@ export async function generateBrief(env,user,locale,id,fetched,{preview=false}={
    const text=[brief.title,brief.topic,...brief.points.map(p=>p.text),...brief.actions.map(p=>p.text)].join(' ');
    if(locale==='en'&&!isEnglishBrief(brief)||locale!=='en'&&!/[\u3400-\u9fff]/.test(text))return fallback;
    if(isCompletionReceipt(original.englishSubject,original.englishBody))brief.actions=[];
-   await setKV(env,await key(user,locale,id,profile),JSON.stringify(brief));
+   await setKV(env,await key(user,locale,id),JSON.stringify(brief));
    return await readBrief(env,user,locale,id,original.row,profile)||brief;
  }catch{
    console.warn('mail-brief-validation-failed',{reason:'invalid-or-unsupported-output'});
    return fallback;
+ }
+}
+
+// Prepare briefs as soon as new mail arrives, so the digest and mail list open with a saved
+// summary instead of calling AI each time. Newest first; the rest are prepared when opened.
+export async function prepareNewMail(env,user,ids=[],limit=8){
+ if(!ids.length)return;
+ const row=await env.DB.prepare('SELECT locale FROM users WHERE id=?').bind(user).first();
+ const locale=row?.locale||'zh-CN';
+ for(const id of ids.slice(-limit).reverse()){
+  try{await generateBrief(env,user,locale,id,undefined,{preview:true});}
+  catch(error){console.warn('arrival-brief-failed',String(error?.message||error).slice(0,100));}
  }
 }

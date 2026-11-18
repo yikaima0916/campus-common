@@ -33,11 +33,11 @@ test('automatic previews leave part of the daily budget for opened mail', async 
     const preview = () => runMailAi(env, 'brief', messages, 1800, {preview: true});
     let previews = 0;
     while (await preview()) previews++;
-    assert.equal(previews, 4); // 60% of 3,000 neurons
-    assert.ok(spent() <= 1800);
+    assert.equal(previews, 5); // 75% of 3,000 neurons
+    assert.ok(spent() <= 2250);
     assert.ok(await runMailAi(env, 'brief', messages, 1800));
     assert.ok(await runMailAi(env, 'full-translation', messages, 1100));
-    assert.equal(state.inferences, 6);
+    assert.equal(state.inferences, 7);
   } finally {
     db.close();
   }

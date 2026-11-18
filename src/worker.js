@@ -1,6 +1,6 @@
 import {mailAiStatus} from './mail-ai.js';
 import { schoolAddress } from './mail.js';
-import {attachBriefs,generateBrief} from './mail-briefs.js';
+import {attachBriefs,generateBrief,prepareNewMail} from './mail-briefs.js';
 import {assistMail,normalizeProfile} from './mail-assist.js';
 import { meetingTask,wording } from './display.js';
 import { serverMessage,normalizeLocale } from './errors.js';
@@ -52,7 +52,7 @@ async function routes(request,env,ctx){
     if(!env.SHORTCUT_INGEST_KEY)return json({error:serverMessage('iPhone 邮件转交尚未配置',uiLocale)},503);
     const supplied=request.headers.get('Authorization')?.replace(/^Bearer\s+/i,'')||'';
     if(!supplied||await hash(supplied)!==await hash(env.SHORTCUT_INGEST_KEY))return json({error:serverMessage('邮件转交密钥无效',uiLocale)},401);
-    const owner=await ownerUser(env);return json({ok:true,...await ingestShortcutEmail(env,await body(request),owner?.id)},201);
+    const owner=await ownerUser(env);const result=await ingestShortcutEmail(env,await body(request),owner?.id);if(result.id&&ctx?.waitUntil)ctx.waitUntil(prepareNewMail(env,owner.id,[result.id]));return json({ok:true,...result},201);
   }
   if(path==='/api/auth/config'&&method==='GET')return json({registration:'simple',passwordMin:12});
   if(path==='/api/register'&&method==='POST'){
@@ -121,7 +121,7 @@ async function routes(request,env,ctx){
     if(preferredZhName.length>40)return json({error:serverMessage('偏好中文译名最多 40 个字符',uiLocale)},400);
     if(linkedEmail&&!validEmail(linkedEmail))return json({error:serverMessage('关联邮箱格式不正确',uiLocale)},400);
     const reminders={...defaultReminder,...parseReminder(current?.reminder_defaults),...(data.reminders||{})};
-    const mailPreferences=parseMailPreferences(data.mailPreferences===undefined?current?.mail_preferences:data.mailPreferences);
+    const mailPreferences=parseMailPreferences(data.mailPreferences===undefined?current?.mail_preferences:{...parseMailPreferences(current?.mail_preferences),...data.mailPreferences});
     // presets = the user's saved custom "截止前提醒" chips (minutes). Clean them instead of rejecting.
     reminders.presets=normalizePresets(reminders.presets);
     if(!Array.isArray(reminders.offsets)||reminders.offsets.length>12||reminders.offsets.some(n=>!Number.isInteger(n)||n<0||n>525600)||!Number.isFinite(Number(reminders.repeat))||Number(reminders.repeat)<0)return json({error:serverMessage('提醒配置不正确',uiLocale)},400);
@@ -373,6 +373,7 @@ async function routes(request,env,ctx){
   }
   if(path==='/api/outlook/sync'&&method==='POST'){
     const result=await syncMail(env,account.user_id);
+    if(result.importedIds?.length&&ctx?.waitUntil)ctx.waitUntil(prepareNewMail(env,account.user_id,result.importedIds));
     return json({imported:result.imported||0,pages:result.pages||0,more:!!result.more});
   }
   if(path==='/api/outlook'&&method==='DELETE'){
@@ -421,7 +422,8 @@ export default {
         for(const connection of connections){
           await env.DB.prepare('UPDATE outlook_connections SET last_attempt=? WHERE user_id=?').bind(now,connection.user_id).run();
           try{
-            await syncMail(env,connection.user_id);
+            const result=await syncMail(env,connection.user_id);
+            await prepareNewMail(env,connection.user_id,result.importedIds||[]);
           }catch(error){await env.DB.prepare('UPDATE outlook_connections SET status=? WHERE user_id=?').bind(String(error.message).slice(0,300),connection.user_id).run();}
         }
       }
