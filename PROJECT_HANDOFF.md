@@ -48,12 +48,18 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 | Cron (reminders, digests) | `scheduled()` exists | **Off** | No cron trigger in `wrangler.i4i.jsonc` |
 | Daily Digest | Yes | Current-day digest verified in production | Scheduled delivery depends on cron. |
 | Campus Common public home / unified Study Workspace | Yes, main | Live 2026-11-10 | One workspace entry; grouped Academic / Campus Life sections on the homepage. All 35 static assets match the final release; future tiles remain Coming Soon |
+| Digest AI suggestion cards (reply draft, registration check) and About me profile | Yes | Deployed 2026-11-18 (`5efd2ac1`); verified locally with real Workers AI on two synthetic emails | Drafts are copied or opened in the mail app, never sent. Registration opens the email's own link. |
 | Academic Planner, reviews, notes, Non-Academic Hub features | No | No | Future concept only; shown as Coming Soon tiles |
 
 ## 5. Latest change log (newest first)
 
 Use this format: Completed changes / Files modified / Commit SHA and branch / Deployed? (worker, URL) / Verification run vs not run / Known issues / Next steps.
 
+- **2026-11-18 — AI suggestion cards and About me (owner requested; also applied to Campus Companion).**
+  - Digest rows whose AI brief asks for a reply or a registration show an "AI suggestion" card: Draft a reply (editable, Copy / Open in mail app) or Open registration (link from the email) plus Check what I need. New route `POST /api/messages/:id/assist` (`src/mail-assist.js`), within the existing AI budget.
+  - Settings "Focus terms" replaced by free-text "About me" (`mailPreferences.profile`, max 800 chars). AI briefs add a short "For you" line when relevant; brief cache is keyed by profile. Interests no longer filter digest mail.
+  - Commit `449a09d` on `main`; Worker `campus-common` version `5efd2ac1`. Tests 113/113. Local `wrangler dev` with real Workers AI on two synthetic emails produced For you lines, a reply draft and a registration check; headless Chrome showed the cards with no page errors. Production: new assets on both hostnames; new route returns 401 signed out. Not verified: a signed-in production run on real mail.
+  - Campus Companion: same change, commit `4f0cd9e`, deployed with `wrangler.handover.jsonc` (version `3bbbf4ae`). Tests 104/105; the failing test also fails on the previous main.
 - **2026-11-17 — AI cap 10,000; account pinned; Campus Companion moved out.**
   - Campus Companion (OOP) now runs in a separate Cloudflare account (Makaii0916@gmail.com's Account) at https://campus-companion.campus-companion-ln.workers.dev. Its original address in this account redirects there with no AI or cron, so this account's 10,000 daily free neurons serve Campus Common only.
   - `MAIL_AI_DAILY_NEURONS` raised from 3,000 to 10,000 (Worker version `efe38e47`). `wrangler.i4i.jsonc` now pins `account_id` b9f6bf4c… because the deploy login can see several accounts.
