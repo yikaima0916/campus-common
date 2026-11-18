@@ -1,6 +1,6 @@
 import {mailAiStatus} from './mail-ai.js';
 import { schoolAddress } from './mail.js';
-import {attachBriefs,generateBrief,prepareNewMail} from './mail-briefs.js';
+import {attachBriefs,generateBrief,prepareNewMail,refreshForYou} from './mail-briefs.js';
 import {assistMail,normalizeProfile} from './mail-assist.js';
 import { meetingTask,wording } from './display.js';
 import { serverMessage,normalizeLocale } from './errors.js';
@@ -127,6 +127,7 @@ async function routes(request,env,ctx){
     if(!Array.isArray(reminders.offsets)||reminders.offsets.length>12||reminders.offsets.some(n=>!Number.isInteger(n)||n<0||n>525600)||!Number.isFinite(Number(reminders.repeat))||Number(reminders.repeat)<0)return json({error:serverMessage('提醒配置不正确',uiLocale)},400);
     if(!validTime(mailPreferences.daily.time)||!validTime(mailPreferences.late.time))return json({error:serverMessage('邮件提醒时间不正确',uiLocale)},400);
     await env.DB.prepare('UPDATE users SET nickname=?,avatar=?,linked_email=?,locale=?,reminder_defaults=?,mail_preferences=?,preferred_zh_name=? WHERE id=?').bind(nickname,avatar,linkedEmail,locale,JSON.stringify(reminders),JSON.stringify(mailPreferences),preferredZhName,account.user_id).run();
+    if(mailPreferences.profile!==parseMailPreferences(current?.mail_preferences).profile&&ctx?.waitUntil)ctx.waitUntil(refreshForYou(env,account.user_id).catch(()=>{}));
     if(data.nameAliases!==undefined){
       const raw=Array.isArray(data.nameAliases)?data.nameAliases:[];
       const seen=new Set(),aliases=[];

@@ -29,3 +29,18 @@ test('task dates must appear in the email',()=>{
   assert.equal(dateInSource('2026-11-19T11:30:00+08:00',src),false);
   assert.equal(dateInSource('2026-12-12T10:30:00+08:00','活動於12月12日舉行'),true);
 });
+import {readBrief,profileTag} from '../src/mail-briefs.js';
+test('For you follows the current About me',async()=>{
+  const brief={title:'i4i pitch deck due',topic:'i4i',points:[{text:'Submit by 18 Nov',evidence:'x'}],actions:[],forYou:'Old line',forYouFor:await profileTag('old')};
+  const kv=new Map();
+  const env={DB:{prepare(sql){return {bind(...a){this.a=a;return this},async all(){return {results:[]}},async first(){
+    if(sql.includes('mail_preferences'))return {mail_preferences:JSON.stringify({profile:'I am in i4i'})};
+    if(sql.includes('FROM kv WHERE key=?')){const k=this.a[0];if(k.startsWith('foryou-v1'))return kv.has(k)?{value:kv.get(k)}:null;return {value:JSON.stringify(brief)};}
+    return null;}}}}};
+  assert.equal((await readBrief(env,'u','en','m1')).forYou,'');
+  for(const k of [...Array(1)]){}
+  const tag=await profileTag('I am in i4i');
+  const {hash}=await import('../src/security.js');
+  kv.set(`foryou-v1:u:en:${await hash('m1')}:${tag}`,'You are taking part in i4i.');
+  assert.equal((await readBrief(env,'u','en','m1')).forYou,'You are taking part in i4i.');
+});

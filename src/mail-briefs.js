@@ -13,6 +13,14 @@ const compact=s=>String(s||'').normalize('NFKC').replace(/[‘’]/g,"'").replac
 // One saved brief per email and language. It is generated once and reused; About me only
 // shapes the brief when it is first written. Older briefs saved under a profile suffix are still read.
 const key=async(user,locale,id)=>`${version}:${user}:${locale}:${await hash(id)}`;
+// The "For you" line depends on About me, so it is stored per About me version.
+export const profileTag=async profile=>profile?(await hash(profile)).slice(0,12):'';
+const forYouKey=async(user,locale,id,tag)=>`foryou-v1:${user}:${locale}:${await hash(id)}:${tag}`;
+async function storedBrief(env,user,locale,id){
+ let brief=JSON.parse(await getKV(env,await key(user,locale,id))||'null');
+ if(!brief){const row=await env.DB.prepare('SELECT value FROM kv WHERE key LIKE ? LIMIT 1').bind((await key(user,locale,id))+':p%').first();if(row?.value)brief=JSON.parse(row.value);}
+ return brief;
+}
 const legacyKey=async(user,locale,id,profile)=>profile?`${await key(user,locale,id)}:p${(await hash(profile)).slice(0,12)}`:'';
 // Correct only when the email itself identifies Lingnan; never rewrite evidence.
 export function correctLingnanBrief(brief,locale,context=''){
@@ -25,9 +33,10 @@ export function correctLingnanBrief(brief,locale,context=''){
 
 export async function readBrief(env,user,locale,id,sourceRow=null,about){try{
  if(about===undefined)about=await readerProfile(env,user);
- let brief=JSON.parse(await getKV(env,await key(user,locale,id))||'null');
- if(!brief&&about){const old=await legacyKey(user,locale,id,about);if(old)brief=JSON.parse(await getKV(env,old)||'null');}
+ let brief=await storedBrief(env,user,locale,id);
  if(!brief||brief.fallback)return null;
+ const tag=await profileTag(about);
+ if(brief.forYouFor!==tag){brief.forYou=tag?(await getKV(env,await forYouKey(user,locale,id,tag))||''):'';}
  if(locale==='en'&&!isEnglishBrief(brief))return null;
  if(!locale.startsWith('zh'))return brief;
  const {results}=await env.DB.prepare('SELECT alias,zh_name AS zhName FROM name_aliases WHERE user_id=? ORDER BY created').bind(user).all();
@@ -91,6 +100,7 @@ export async function generateBrief(env,user,locale,id,fetched,{preview=false}={
    const text=[brief.title,brief.topic,...brief.points.map(p=>p.text),...brief.actions.map(p=>p.text)].join(' ');
    if(locale==='en'&&!isEnglishBrief(brief)||locale!=='en'&&!/[\u3400-\u9fff]/.test(text))return fallback;
    if(isCompletionReceipt(original.englishSubject,original.englishBody))brief.actions=[];
+   brief.forYouFor=await profileTag(profile);
    await setKV(env,await key(user,locale,id),JSON.stringify(brief));
    return await readBrief(env,user,locale,id,original.row,profile)||brief;
  }catch{
@@ -109,4 +119,33 @@ export async function prepareNewMail(env,user,ids=[],limit=8){
   try{await generateBrief(env,user,locale,id,undefined,{preview:true});}
   catch(error){console.warn('arrival-brief-failed',String(error?.message||error).slice(0,100));}
  }
+}
+
+// After About me changes, rewrite only the short "For you" line of recent saved briefs. It reads
+// the saved summary, not the whole email, so each line costs little.
+export async function refreshForYou(env,user,limit=20){
+ const about=await readerProfile(env,user),tag=await profileTag(about);
+ if(!about)return 0;
+ const row=await env.DB.prepare('SELECT locale FROM users WHERE id=?').bind(user).first();
+ const locale=row?.locale||'zh-CN';
+ const language=locale==='en'?'English':locale==='zh-TW'?'Traditional Chinese (Hong Kong)':'Simplified Chinese';
+ const {results}=await env.DB.prepare('SELECT id FROM messages WHERE user_id=? ORDER BY received DESC LIMIT 60').bind(user).all();
+ let done=0;
+ for(const {id} of results||[]){
+  if(done>=limit)break;
+  const brief=await storedBrief(env,user,locale,id).catch(()=>null);
+  if(!brief||brief.fallback||brief.forYouFor===tag)continue;
+  const k=await forYouKey(user,locale,id,tag);
+  if(await getKV(env,k)!==undefined)continue;
+  const summary=[brief.title,...(brief.points||[]).map(p=>p.text),...(brief.actions||[]).map(p=>p.text)].join('\n').slice(0,2500);
+  const out=await runMailAi(env,'foryou',[
+   {role:'system',content:`Write one short sentence (under 25 words) in ${language} on why this campus email may matter to this reader, based only on the email summary and what the reader wrote about themselves. If there is no clear link, return an empty string. Never say the reader is eligible. Return only the sentence.\n\nAbout the reader: <<<${about.replace(/[<>]/g,'')}>>>`},
+   {role:'user',content:summary}
+  ],90,{preview:true});
+  if(!out)break;
+  const text=String(typeof out.response==='string'?out.response:'').replace(/^["“]|["”]$/g,'').trim();
+  await setKV(env,k,text.length<=220?text:'');
+  done++;
+ }
+ return done;
 }
