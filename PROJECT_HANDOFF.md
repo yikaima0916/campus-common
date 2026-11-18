@@ -45,7 +45,7 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 | Outlook OAuth | Yes | Authorisation start verified | Production secrets configured. A signed-in test account reached Microsoft sign-in with the new app and correct Web callback. User consent, token exchange, and mail sync remain to be verified. |
 | iPhone Shortcut ingestion | Yes | Not configured | Needs `SHORTCUT_INGEST_KEY` |
 | Web Push | Yes | Unverified | Needs VAPID secrets |
-| Cron (reminders, digests) | `scheduled()` exists | **Off** | No cron trigger in `wrangler.i4i.jsonc` |
+| Cron (reminders, digests, Outlook sync, arrival briefs) | Yes | **On** since 2026-11-18 (every minute); `cron_last` updating in production | |
 | Daily Digest | Yes | Current-day digest verified in production | Scheduled delivery depends on cron. |
 | Campus Common public home / unified Study Workspace | Yes, main | Live 2026-11-10 | One workspace entry; grouped Academic / Campus Life sections on the homepage. All 35 static assets match the final release; future tiles remain Coming Soon |
 | Digest AI suggestion cards (reply draft, registration check) and About me profile | Yes | Deployed 2026-11-18 (`5efd2ac1`); verified locally with real Workers AI on two synthetic emails | Drafts are copied or opened in the mail app, never sent. Registration opens the email's own link. |
@@ -54,6 +54,13 @@ Legend: **Code** = present in repo; **Live** = verified working on the deployed 
 ## 5. Latest change log (newest first)
 
 Use this format: Completed changes / Files modified / Commit SHA and branch / Deployed? (worker, URL) / Verification run vs not run / Known issues / Next steps.
+
+- **2026-11-18 — AI briefs on arrival, saved once; cron on; sender fix; About me card.**
+  - New mail (Outlook sync by cron or the sync button, iPhone Shortcut) gets its AI brief straight away in the account's language (newest 8 per sync) via `prepareNewMail`. Briefs are saved once per email and language and no longer keyed by About me, so editing it does not regenerate everything (the earlier profile key had pushed automatic previews past their share: 5,869 of 10,000 neurons used, preview ceiling 6,000). Older profile-keyed briefs are still read. Preview share raised to 75%.
+  - `wrangler.i4i.jsonc` now has a `* * * * *` cron (version `aa7dc9cd`); production `cron_last` confirmed updating and Outlook sync running.
+  - Rule analysis used a fixed "来源未确认" origin; it now uses the parsed original sender's name, and the digest falls back to the sender for existing rows.
+  - About me is its own Settings card; PATCH merges partial `mailPreferences`.
+  - Commit `5249822`. Tests 113/113. Local check: a forwarded test email had its brief saved without any brief request and showed "University Library" as sender. Campus Companion: same UI and sender fixes, commit `c05725f`, version `7346a9d3` (it already pre-generated briefs in cron).
 
 - **2026-11-18 — AI suggestion cards and About me (owner requested; also applied to Campus Companion).**
   - Digest rows whose AI brief asks for a reply or a registration show an "AI suggestion" card: Draft a reply (editable, Copy / Open in mail app) or Open registration (link from the email) plus Check what I need. New route `POST /api/messages/:id/assist` (`src/mail-assist.js`), within the existing AI budget.
